@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Example Story</title>
+  <meta name="description" content="A placeholder story entry. Replace with your actual narrative content." />
+  <meta name="tag" content="fiction" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0F1117; --panel: #1A1F2E; --border: #2E3650;
+      --accent: #FF6B2B; --accent-soft: #FF9A5C;
+      --text: #E2E8F0; --muted: #64748B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; padding: 40px 24px; }
+    .back { display: inline-flex; align-items: center; gap: 8px; color: var(--accent-soft); text-decoration: none; font-size: 0.8rem; margin-bottom: 32px; }
+    .back:hover { color: var(--accent); }
+    h1 { font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 12px; }
+    .tag { display: inline-block; font-size: 0.62rem; padding: 3px 8px; border-radius: 3px; background: var(--panel); border: 1px solid var(--border); color: var(--accent-soft); margin-bottom: 20px; }
+    .prose { color: var(--text); line-height: 1.85; max-width: 640px; font-size: 0.92rem; }
+    .prose p + p { margin-top: 1.2em; }
+  </style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to Index</a>
+  <h1>Example Story</h1>
+  <span class="tag">fiction</span>
+  <div class="prose">
+    <p>Replace this page with your actual story content. The <code>&lt;title&gt;</code> and <code>&lt;meta name="description"&gt;</code> tags feed directly into the auto-index.</p>
+    <p>Long-form fiction, game lore, devlog narratives — anything goes here. Each story lives in its own subfolder under <code>stories/</code>.</p>
+  </div>
+</body>
+</html>

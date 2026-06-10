@@ -1,0 +1,36 @@
+name: Update Orbital Index
+
+# Runs on every push to main, or manually via workflow_dispatch
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/index.html'          # Only trigger when project pages change
+      - 'scripts/update-index.py'
+  workflow_dispatch:             # Manual trigger from GitHub Actions tab
+
+jobs:
+  update-index:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Regenerate nav-data.js
+        run: python3 scripts/update-index.py
+
+      - name: Commit updated nav-data.js (if changed)
+        run: |
+          git config user.name  "orbital-bot"
+          git config user.email "orbital-bot@users.noreply.github.com"
+          git add nav-data.js
+          git diff --cached --quiet || git commit -m "chore: auto-update nav-data.js [skip ci]"
+          git push
