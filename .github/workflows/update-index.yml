@@ -34,3 +34,4 @@ jobs:
           git add nav-data.js
           git diff --cached --quiet || git commit -m "chore: auto-update nav-data.js [skip ci]"
           git push
+disabled: true
