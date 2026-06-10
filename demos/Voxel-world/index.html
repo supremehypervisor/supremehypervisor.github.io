@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>voxel terrain</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  --bg:        #07090c;
+  --surface:   rgba(6,10,8,0.88);
+  --border:    #182418;
+  --border-hi: #2a442a;
+  --text-dim:  #2d5030;
+  --text-mid:  #4c8f50;
+  --text-hi:   #80ff88;
+  --accent:    #4caf50;
+  --font:      'Courier New', monospace;
+  --radius:    3px;
+}
+
+/* ── Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); overflow:hidden; font-family:var(--font); }
+
+/* ── Canvas ────────────────────────────────────────────────── */
+#c { display:block; width:100vw; height:100vh; }
+
+/* ── Shared surface card ───────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(4px);
+}
+
+/* ── Button ────────────────────────────────────────────────── */
+.btn {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  color: var(--text-mid);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  text-align: left;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.btn:hover  { background: rgba(76,175,80,0.08); color: var(--text-hi); }
+.btn:active,
+.btn.on     { background: rgba(76,175,80,0.14); color: var(--text-hi); border-color: var(--accent); }
+
+/* ── Input ─────────────────────────────────────────────────── */
+input.field {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  color: var(--text-hi);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.12s;
+}
+input.field:focus { border-color: var(--accent); }
+input.field::placeholder { color: var(--text-dim); }
+
+/* ── Legend — top left ─────────────────────────────────────── */
+#legend {
+  position: fixed;
+  top: 10px; left: 10px;
+  z-index: 10;
+  padding: 7px 10px;
+  line-height: 1.9;
+  font-size: 10px;
+  color: var(--text-mid);
+  pointer-events: none;
+}
+.swatch {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 1px;
+  vertical-align: middle;
+  margin-right: 5px;
+  opacity: 0.9;
+}
+
+/* ── Controls — top right ──────────────────────────────────── */
+#ctrl {
+  position: fixed;
+  top: 10px; right: 10px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 160px;
+}
+.grid-btns {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 3px;
+}
+.grid-btns .btn { text-align: center; padding: 4px 0; }
+
+/* ── HUD — bottom strip ────────────────────────────────────── */
+#hud {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11px;
+  color: var(--accent);
+  z-index: 10;
+  user-select: none;
+  height: 38px;
+}
+.hstat {
+  flex: 1;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+.hstat:last-child { border-right: none; }
+.hstat .lbl { color: var(--text-dim); font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.07em; }
+.hstat .val { color: var(--text-hi); font-weight: bold; font-size: 12px; }
+
+/* ── Data panel ────────────────────────────────────────────── */
+#dataPanel {
+  display: none;
+  position: fixed;
+  bottom: 38px; left: 0; right: 0;
+  max-height: 44vh;
+  background: rgba(4,8,5,0.96);
+  border-top: 1px solid var(--border-hi);
+  z-index: 20;
+  flex-direction: column;
+  overflow: hidden;
+}
+#dataPanel.open { display: flex; }
+
+/* panel header bar */
+#panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#panelHeader .panel-title {
+  font-size: 10px;
+  color: var(--text-mid);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+#panelHeader .panel-meta {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+#panelHeader .panel-actions { display: flex; gap: 5px; }
+
+/* tab bar */
+#panelTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ptab {
+  padding: 5px 12px;
+  font-size: 10px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  transition: color 0.12s, background 0.12s;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ptab:hover { color: var(--text-mid); background: rgba(76,175,80,0.05); }
+.ptab.active { color: var(--text-hi); background: rgba(76,175,80,0.08); }
+
+/* panel body */
+#panelBody {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hi) transparent;
+}
+
+/* ── OVERVIEW TAB ─── */
+#tab-overview { display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start; }
+
+.meta-card {
+  flex: 1 1 180px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(10,20,12,0.6);
+}
+.meta-card .mc-title {
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.kv-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:3px; }
+.kv-row .k { font-size:10px; color:var(--text-mid); }
+.kv-row .v { font-size:10px; color:var(--text-hi); font-weight:bold; }
+
+/* ── CHUNKS TAB ─── */
+#tab-chunks { display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start; }
+
+.chunk-card {
+  flex: 1 1 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(10,20,12,0.6);
+  min-width: 0;
+}
+.chunk-card .cc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+.chunk-card .cc-id { font-size:11px; color:var(--text-hi); font-weight:bold; }
+.chunk-card .cc-off { font-size:9px; color:var(--text-dim); }
+
+/* type histogram */
+.hist-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+.hist-label { font-size: 9px; color: var(--text-mid); width: 36px; flex-shrink:0; }
+.hist-bar-wrap { flex:1; height:5px; background:rgba(255,255,255,0.04); border-radius:2px; overflow:hidden; }
+.hist-bar { height:100%; border-radius:2px; transition: width 0.4s ease; }
+.hist-count { font-size:9px; color:var(--text-dim); width:36px; text-align:right; flex-shrink:0; }
+
+/* ── RAW TAB ─── */
+#tab-raw { padding:0; }
+#tab-raw pre {
+  font-size: 10px;
+  color: var(--text-mid);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* live pulse dot */
+#liveDot {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 5px;
+  animation: pulse 1.4s ease-in-out infinite;
+  vertical-align: middle;
+}
+@keyframes pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.35; transform:scale(0.7); }
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- Legend -->
+<div id="legend" class="card">
+  <div><span class="swatch" style="background:#7fff7f"></span>grass</div>
+  <div><span class="swatch" style="background:#8B6914"></span>dirt</div>
+  <div><span class="swatch" style="background:#607060"></span>stone</div>
+  <div><span class="swatch" style="background:#c8b860"></span>sand</div>
+  <div><span class="swatch" style="background:#e8f0ff"></span>snow</div>
+  <div><span class="swatch" style="background:#2060a0"></span>water</div>
+</div>
+
+<!-- Controls -->
+<div id="ctrl">
+  <input id="seedbox" class="field" placeholder="seed…" value="42" />
+  <div class="grid-btns">
+    <button class="btn gbtn on" data-n="1" onclick="setGridN(1)">1×1</button>
+    <button class="btn gbtn" data-n="2" onclick="setGridN(2)">2×2</button>
+    <button class="btn gbtn" data-n="3" onclick="setGridN(3)">3×3</button>
+    <button class="btn gbtn" data-n="4" onclick="setGridN(4)">4×4</button>
+    <button class="btn gbtn" data-n="6" onclick="setGridN(6)">6×6</button>
+    <button class="btn gbtn" data-n="8" onclick="setGridN(8)">8×8</button>
+  </div>
+  <button class="btn" onclick="regen()">⟳ regen</button>
+  <button class="btn on" id="btnOrbit" onclick="toggleOrbit()">⊙ orbit: on</button>
+  <button class="btn"   id="btnWire"  onclick="toggleWire()"># wire: off</button>
+  <button class="btn on" id="btnAO"   onclick="toggleAO()">◑ ao: on</button>
+  <button class="btn" onclick="exportHeuristics()">↓ heuristics</button>
+  <button class="btn" id="btnData" onclick="toggleDataPanel()">{ } chunk data</button>
+</div>
+
+<!-- Data panel -->
+<div id="dataPanel">
+  <div id="panelHeader">
+    <span class="panel-title"><span id="liveDot"></span>chunk data</span>
+    <span id="panelMeta" class="panel-meta"></span>
+    <div class="panel-actions">
+      <button class="btn" style="font-size:9px;padding:3px 8px" onclick="exportChunkData()">↓ JSON</button>
+      <button class="btn" style="font-size:9px;padding:3px 8px" onclick="toggleDataPanel()">✕</button>
+    </div>
+  </div>
+  <div id="panelTabs">
+    <div class="ptab active" data-tab="overview" onclick="switchTab('overview')">overview</div>
+    <div class="ptab" data-tab="chunks" onclick="switchTab('chunks')">chunks</div>
+    <div class="ptab" data-tab="raw" onclick="switchTab('raw')">raw json</div>
+  </div>
+  <div id="panelBody">
+    <div id="tab-overview"></div>
+    <div id="tab-chunks" style="display:none"></div>
+    <div id="tab-raw" style="display:none"><pre id="rawOut"></pre></div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hstat"><div class="lbl">build ms</div><div class="val" id="sBuild">—</div></div>
+  <div class="hstat"><div class="lbl">voxels</div>  <div class="val" id="sVox">—</div></div>
+  <div class="hstat"><div class="lbl">faces</div>   <div class="val" id="sFaces">—</div></div>
+  <div class="hstat"><div class="lbl">verts</div>   <div class="val" id="sVerts">—</div></div>
+  <div class="hstat"><div class="lbl">cull ×</div>  <div class="val" id="sCull">—</div></div>
+  <div class="hstat"><div class="lbl">fps</div>     <div class="val" id="sFPS">—</div></div>
+  <div class="hstat"><div class="lbl">draw calls</div><div class="val" id="sDC">1</div></div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// ATLAS KEY
+// ─────────────────────────────────────────────────────────────
+const ATLAS = {
+  0: null,
+  1: { hex:'#7fff7f', r:0.85, m:0.0,  name:'grass' },
+  2: { hex:'#8B6914', r:0.95, m:0.0,  name:'dirt'  },
+  3: { hex:'#607060', r:0.80, m:0.05, name:'stone' },
+  4: { hex:'#c8b860', r:0.90, m:0.0,  name:'sand'  },
+  5: { hex:'#e8f0ff', r:0.50, m:0.1,  name:'snow'  },
+  6: { hex:'#2060a0', r:0.20, m:0.3,  name:'water' },
+};
+
+// ─────────────────────────────────────────────────────────────
+// FACE DEFINITIONS
+// ─────────────────────────────────────────────────────────────
+const FACES = [
+  { dir:[ 1,0,0], normal:[ 1,0,0], corners:[[1,1,0],[1,0,0],[1,0,1],[1,1,1]] },
+  { dir:[-1,0,0], normal:[-1,0,0], corners:[[0,1,1],[0,0,1],[0,0,0],[0,1,0]] },
+  { dir:[0, 1,0], normal:[0, 1,0], corners:[[0,1,0],[1,1,0],[1,1,1],[0,1,1]] },
+  { dir:[0,-1,0], normal:[0,-1,0], corners:[[0,0,1],[1,0,1],[1,0,0],[0,0,0]] },
+  { dir:[0,0, 1], normal:[0,0, 1], corners:[[1,1,1],[1,0,1],[0,0,1],[0,1,1]] },
+  { dir:[0,0,-1], normal:[0,0,-1], corners:[[0,1,0],[0,0,0],[1,0,0],[1,1,0]] },
+];
+
+// ─────────────────────────────────────────────────────────────
+// WORLD CONFIG
+// ─────────────────────────────────────────────────────────────
+const CW = 64, CH = 28, CD = 64;
+const WATER_LEVEL = 5;
+let GRID_N = 1;
+
+// ─────────────────────────────────────────────────────────────
+// HEURISTICS
+// ─────────────────────────────────────────────────────────────
+const heuristics = [];
+function recordHeuristic(h) {
+  h.ts = Date.now();
+  heuristics.push(h);
+  if (heuristics.length > 200) heuristics.shift();
+}
+function exportHeuristics() {
+  dl(JSON.stringify(heuristics, null, 2), `voxel_heuristics_${Date.now()}.json`);
+}
+function dl(text, filename) {
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([text], {type:'application/json'})),
+    download: filename,
+  });
+  a.click();
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOISE
+// ─────────────────────────────────────────────────────────────
+let SEED = 42;
+function setSeed(s) { SEED = (s ^ 0xdeadbeef) >>> 0; }
+
+let PERM = new Uint8Array(512);
+function buildPerm() {
+  const p = new Uint8Array(256);
+  for (let i=0;i<256;i++) p[i]=i;
+  let s = SEED;
+  for (let i=255;i>0;i--) {
+    s = (Math.imul(s,1664525)+1013904223)>>>0;
+    const j=s%(i+1); [p[i],p[j]]=[p[j],p[i]];
+  }
+  for (let i=0;i<512;i++) PERM[i]=p[i&255];
+}
+
+function fade(t){ return t*t*t*(t*(t*6-15)+10); }
+function lerp(a,b,t){ return a+t*(b-a); }
+function grad2(h,x,z){
+  switch(h&7){
+    case 0:return x+z;case 1:return -x+z;case 2:return x-z;case 3:return -x-z;
+    case 4:return x;  case 5:return -x;  case 6:return z;  case 7:return -z;
+  }
+}
+function perlin2(x,z){
+  const xi=Math.floor(x)&255, zi=Math.floor(z)&255;
+  const xf=x-Math.floor(x), zf=z-Math.floor(z);
+  const u=fade(xf), v=fade(zf);
+  const a=PERM[xi]+zi, b=PERM[xi+1]+zi;
+  return lerp(
+    lerp(grad2(PERM[a],xf,zf),     grad2(PERM[b],xf-1,zf),   u),
+    lerp(grad2(PERM[a+1],xf,zf-1), grad2(PERM[b+1],xf-1,zf-1),u),
+    v
+  );
+}
+function fbm(x,z,oct){
+  let val=0,amp=1,freq=1,max=0;
+  for(let i=0;i<oct;i++){
+    val+=perlin2(x*freq,z*freq)*amp; max+=amp; amp*=0.5; freq*=2;
+  }
+  return val/max;
+}
+
+// ─────────────────────────────────────────────────────────────
+// HEIGHT MAP
+// ─────────────────────────────────────────────────────────────
+let heightMap = null;
+function buildHeightMap(){
+  buildPerm();
+  const TW=CW*GRID_N, TD=CD*GRID_N;
+  heightMap=new Int32Array(TW*TD);
+  const bs=0.035, ds=0.12;
+  for(let x=0;x<TW;x++) for(let z=0;z<TD;z++){
+    const base=fbm(x*bs,z*bs,4);
+    const det=fbm(x*ds,z*ds,2)*0.25;
+    const h=Math.round(((base+det)*0.5+0.5)*(CH-6)+2);
+    heightMap[x+z*TW]=Math.max(2,Math.min(CH-2,h));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// VOXEL GRIDS
+// ─────────────────────────────────────────────────────────────
+let chunkGrids={};
+function buildAllGrids(){
+  buildHeightMap();
+  chunkGrids={};
+  const TW=CW*GRID_N;
+  for(let cx=0;cx<GRID_N;cx++) for(let cz=0;cz<GRID_N;cz++){
+    const g=new Uint8Array(CW*CH*CD);
+    const ox=cx*CW, oz=cz*CD;
+    for(let x=0;x<CW;x++) for(let z=0;z<CD;z++){
+      const wx=ox+x, wz=oz+z;
+      const top=heightMap[wx+wz*TW];
+      for(let y=0;y<CH;y++){
+        let t=0;
+        if(y<top)       t=y>=top-2?2:3;
+        else if(y===top) t=top<=WATER_LEVEL+1?4:top>=CH-5?5:1;
+        else if(y<=WATER_LEVEL) t=6;
+        g[x+y*CW+z*CW*CH]=t;
+      }
+    }
+    chunkGrids[`${cx},${cz}`]=g;
+  }
+}
+
+function getVoxWorld(wx,wy,wz){
+  if(wy<0||wy>=CH) return 0;
+  const cx=Math.floor(wx/CW), cz=Math.floor(wz/CD);
+  if(cx<0||cx>=GRID_N||cz<0||cz>=GRID_N) return 0;
+  return chunkGrids[`${cx},${cz}`][(wx-cx*CW)+wy*CW+(wz-cz*CD)*CW*CH];
+}
+function isSolid(wx,wy,wz){ return getVoxWorld(wx,wy,wz)!==0; }
+
+// ─────────────────────────────────────────────────────────────
+// VERTEX AO
+// ─────────────────────────────────────────────────────────────
+let useAO=true;
+function vertexAO(wx,wy,wz,fn,cp){
+  if(!useAO) return 1.0;
+  const ox=cp[0]*2-1, oy=cp[1]*2-1, oz=cp[2]*2-1;
+  const tx=fn[0]!==0?0:ox, ty=fn[1]!==0?0:oy, tz=fn[2]!==0?0:oz;
+  const s1=isSolid(wx+fn[0]+tx, wy+fn[1],      wz+fn[2]     )?1:0;
+  const s2=isSolid(wx+fn[0],    wy+fn[1]+ty,   wz+fn[2]+tz  )?1:0;
+  const d =isSolid(wx+fn[0]+tx, wy+fn[1]+ty,   wz+fn[2]+tz  )?1:0;
+  if(s1&&s2) return 0.2;
+  return 1.0-(s1+s2+d)*0.2;
+}
+
+// ─────────────────────────────────────────────────────────────
+// MESH BUILDER
+// ─────────────────────────────────────────────────────────────
+let wireMode=false;
+function buildChunkMesh(cx,cz){
+  const pos=[],nrm=[],col=[],idx=[];
+  let vi=0, solid=0, faces=0;
+  const C=new THREE.Color(), g=chunkGrids[`${cx},${cz}`];
+  const ox=cx*CW, oz=cz*CD;
+  for(let lx=0;lx<CW;lx++) for(let y=0;y<CH;y++) for(let lz=0;lz<CD;lz++){
+    const t=g[lx+y*CW+lz*CW*CH]; if(!t) continue; solid++;
+    C.set(ATLAS[t].hex);
+    const wx=ox+lx, wz=oz+lz;
+    for(let fi=0;fi<6;fi++){
+      const f=FACES[fi];
+      if(isSolid(wx+f.dir[0],y+f.dir[1],wz+f.dir[2])) continue; faces++;
+      for(let ci=0;ci<4;ci++){
+        const c=f.corners[ci];
+        pos.push(wx+c[0],y+c[1],wz+c[2]);
+        nrm.push(f.normal[0],f.normal[1],f.normal[2]);
+        const sh=vertexAO(wx,y,wz,f.normal,c);
+        col.push(C.r*sh,C.g*sh,C.b*sh);
+      }
+      idx.push(vi,vi+2,vi+1,vi,vi+3,vi+2); vi+=4;
+    }
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('normal',  new THREE.Float32BufferAttribute(nrm,3));
+  geo.setAttribute('color',   new THREE.Float32BufferAttribute(col,3));
+  geo.setIndex(idx);
+  const mat=new THREE.MeshLambertMaterial({vertexColors:true,wireframe:wireMode});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.userData={cx,cz};
+  return{mesh,solidCount:solid,faceCount:faces};
+}
+
+function buildAllMeshes(){
+  const t0=performance.now();
+  let totSolid=0, totFaces=0;
+  const meshes=[];
+  for(let cx=0;cx<GRID_N;cx++) for(let cz=0;cz<GRID_N;cz++){
+    const r=buildChunkMesh(cx,cz);
+    meshes.push(r.mesh); totSolid+=r.solidCount; totFaces+=r.faceCount;
+  }
+  const ms=performance.now()-t0;
+  const cull=totSolid>0?(totSolid*6/Math.max(1,totFaces)).toFixed(1):'—';
+  document.getElementById('sBuild').textContent = ms.toFixed(1)+' ms';
+  document.getElementById('sVox').textContent   = totSolid.toLocaleString();
+  document.getElementById('sFaces').textContent = totFaces.toLocaleString();
+  document.getElementById('sVerts').textContent = (totFaces*4).toLocaleString();
+  document.getElementById('sCull').textContent  = cull+'×';
+  document.getElementById('sDC').textContent    = meshes.length;
+  recordHeuristic({seed:SEED,gridN:GRID_N,buildMs:+ms.toFixed(2),solidVoxels:totSolid,faces:totFaces,cullRatio:+cull,useAO});
+  return meshes;
+}
+
+// ─────────────────────────────────────────────────────────────
+// THREE.JS SCENE
+// ─────────────────────────────────────────────────────────────
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.setSize(window.innerWidth,window.innerHeight);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color('#06090d');
+
+const camera=new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,0.5,800);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.maxPolarAngle=Math.PI*0.52;
+
+scene.add(new THREE.AmbientLight('#c0d8ff',0.55));
+const sun=new THREE.DirectionalLight('#ffe8c0',0.90);
+scene.add(sun);
+
+let chunkMeshes=[];
+function clearMeshes(){
+  for(const m of chunkMeshes){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  chunkMeshes=[];
+}
+function placeMeshes(meshes){ clearMeshes(); chunkMeshes=meshes; for(const m of meshes) scene.add(m); }
+
+let orbitAngle=-Math.PI/2;
+function fitCamera(){
+  const TW=CW*GRID_N, TD=CD*GRID_N;
+  const cx=TW/2, cz=TD/2;
+  const dist=Math.max(TW,TD)*1.05;
+  scene.fog=new THREE.Fog('#06090d',dist*0.55,dist*1.35);
+  controls.maxDistance=dist*2.5;
+  sun.position.set(TW*1.5,CH*3,TD*0.8);
+  controls.target.set(cx,CH*0.3,cz);
+  camera.position.set(cx,CH*1.2,cz+dist*0.85);
+  camera.far=dist*3;
+  camera.updateProjectionMatrix();
+  controls.update();
+  orbitAngle=-Math.PI/2;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CHUNK DATA — structured JSON builder
+// ─────────────────────────────────────────────────────────────
+function buildChunkDataJSON(includeVoxels=false){
+  const atlasOut={};
+  for(const [id,e] of Object.entries(ATLAS)){
+    if(!e) continue;
+    atlasOut[id]={name:e.name,hex:e.hex};
+  }
+  const TW=CW*GRID_N;
+  const chunks=[];
+  for(let cx=0;cx<GRID_N;cx++) for(let cz=0;cz<GRID_N;cz++){
+    const g=chunkGrids[`${cx},${cz}`];
+    const ox=cx*CW, oz=cz*CD;
+    const heightSlice=[];
+    for(let lz=0;lz<CD;lz++) for(let lx=0;lx<CW;lx++)
+      heightSlice.push(heightMap[(ox+lx)+(oz+lz)*TW]);
+    const hist={};
+    let solidVoxels=0, surfaceVoxels=0;
+    for(let i=0;i<g.length;i++){
+      const t=g[i]; if(!t) continue; solidVoxels++;
+      hist[t]=(hist[t]??0)+1;
+      const lx=i%CW, y=Math.floor((i%(CW*CH))/CW), lz=Math.floor(i/(CW*CH));
+      if(y<CH-1&&g[lx+(y+1)*CW+lz*CW*CH]===0) surfaceVoxels++;
+    }
+    const namedHist={};
+    for(const[tid,cnt] of Object.entries(hist)) namedHist[ATLAS[tid]?.name??`type_${tid}`]=cnt;
+    const entry={cx,cz,worldOffsetX:ox,worldOffsetZ:oz,heightSlice,
+      stats:{solidVoxels,surfaceVoxels,typeHistogram:namedHist}};
+    if(includeVoxels){ entry.voxels=Array.from(g); entry.voxelLayout='lx + y*CW + lz*CW*CH'; }
+    chunks.push(entry);
+  }
+  return{
+    meta:{seed:SEED,gridN:GRID_N,chunkW:CW,chunkH:CH,chunkD:CD,
+          waterLevel:WATER_LEVEL,totalWorldX:CW*GRID_N,totalWorldZ:CD*GRID_N},
+    atlas:atlasOut,chunks
+  };
+}
+
+function exportChunkData(){
+  const d=buildChunkDataJSON(false);
+  dl(JSON.stringify(d,null,2),`voxel_world_${SEED}_${GRID_N}x${GRID_N}.json`);
+}
+
+// ─────────────────────────────────────────────────────────────
+// DATA PANEL — structured live UI
+// ─────────────────────────────────────────────────────────────
+let dataPanelOpen=false;
+let activeTab='overview';
+let liveRefreshId=null;
+
+function toggleDataPanel(){
+  dataPanelOpen=!dataPanelOpen;
+  document.getElementById('dataPanel').classList.toggle('open',dataPanelOpen);
+  document.getElementById('btnData').classList.toggle('on',dataPanelOpen);
+  if(dataPanelOpen){
+    renderPanel();
+    startLiveRefresh();
+  } else {
+    stopLiveRefresh();
+  }
+}
+
+function startLiveRefresh(){
+  stopLiveRefresh();
+  liveRefreshId=setInterval(()=>{ if(dataPanelOpen) renderPanel(); },800);
+}
+function stopLiveRefresh(){ if(liveRefreshId){ clearInterval(liveRefreshId); liveRefreshId=null; } }
+
+function switchTab(tab){
+  activeTab=tab;
+  document.querySelectorAll('.ptab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.querySelectorAll('#panelBody > div').forEach(d=>d.style.display='none');
+  document.getElementById('tab-'+tab).style.display='';
+  renderPanel();
+}
+
+function renderPanel(){
+  if(!dataPanelOpen) return;
+  const data=buildChunkDataJSON(false);
+  const m=data.meta;
+  // meta bar
+  document.getElementById('panelMeta').textContent=
+    `seed ${m.seed}  ·  ${m.gridN}×${m.gridN} grid  ·  ${m.totalWorldX}×${m.totalWorldZ} world`;
+
+  if(activeTab==='overview')  renderOverview(data);
+  else if(activeTab==='chunks') renderChunks(data);
+  else if(activeTab==='raw')    renderRaw(data);
+}
+
+function renderOverview(data){
+  const m=data.meta;
+  const allChunks=data.chunks;
+  const totalSolid=allChunks.reduce((s,c)=>s+c.stats.solidVoxels,0);
+  const totalSurface=allChunks.reduce((s,c)=>s+c.stats.surfaceVoxels,0);
+
+  // aggregate type histogram
+  const aggHist={};
+  for(const c of allChunks)
+    for(const[k,v] of Object.entries(c.stats.typeHistogram))
+      aggHist[k]=(aggHist[k]??0)+v;
+
+  const el=document.getElementById('tab-overview');
+  el.innerHTML=`
+    <div class="meta-card">
+      <div class="mc-title">world</div>
+      ${kv('seed',m.seed)}
+      ${kv('grid',`${m.gridN}×${m.gridN} (${m.gridN*m.gridN} chunks)`)}
+      ${kv('size',`${m.totalWorldX} × ${m.totalWorldZ}`)}
+      ${kv('height',m.chunkH)}
+      ${kv('water level',m.waterLevel)}
+    </div>
+    <div class="meta-card">
+      <div class="mc-title">voxels</div>
+      ${kv('solid',totalSolid.toLocaleString())}
+      ${kv('surface',totalSurface.toLocaleString())}
+      ${kv('air',(m.totalWorldX*m.totalWorldZ*m.chunkH-totalSolid).toLocaleString())}
+      ${kv('chunks',m.gridN*m.gridN)}
+      ${kv('vox/chunk',Math.round(totalSolid/(m.gridN*m.gridN)).toLocaleString())}
+    </div>
+    <div class="meta-card" style="flex:2 1 320px">
+      <div class="mc-title">type distribution</div>
+      ${histogramHTML(aggHist,totalSolid)}
+    </div>
+  `;
+}
+
+function renderChunks(data){
+  const el=document.getElementById('tab-chunks');
+  el.innerHTML=data.chunks.map(c=>{
+    const tot=c.stats.solidVoxels||1;
+    return `<div class="chunk-card">
+      <div class="cc-head">
+        <span class="cc-id">chunk [${c.cx},${c.cz}]</span>
+        <span class="cc-off">+${c.worldOffsetX},${c.worldOffsetZ}</span>
+      </div>
+      ${kv('solid voxels',c.stats.solidVoxels.toLocaleString())}
+      ${kv('surface voxels',c.stats.surfaceVoxels.toLocaleString())}
+      <div style="margin-top:6px">
+        ${histogramHTML(c.stats.typeHistogram,tot)}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderRaw(data){
+  const preview=JSON.parse(JSON.stringify(data));
+  for(const c of preview.chunks)
+    c.heightSlice=[...c.heightSlice.slice(0,8),`… (${CW*CD} total)`];
+  document.getElementById('rawOut').textContent=JSON.stringify(preview,null,2);
+}
+
+function kv(k,v){
+  return `<div class="kv-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+}
+
+function histogramHTML(hist,total){
+  const entries=Object.entries(hist).sort((a,b)=>b[1]-a[1]);
+  return entries.map(([name,count])=>{
+    const pct=Math.max(1,Math.round(count/total*100));
+    const atlasEntry=Object.values(ATLAS).find(a=>a&&a.name===name);
+    const color=atlasEntry?atlasEntry.hex:'#4caf50';
+    return `<div class="hist-row">
+      <span class="hist-label">${name}</span>
+      <div class="hist-bar-wrap"><div class="hist-bar" style="width:${pct}%;background:${color}"></div></div>
+      <span class="hist-count">${count.toLocaleString()}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────
+// REGEN + CONTROLS
+// ─────────────────────────────────────────────────────────────
+function regen(){
+  const raw=document.getElementById('seedbox').value.trim();
+  const s=parseInt(raw,10);
+  setSeed(isNaN(s)?Math.floor(Math.random()*99999):s);
+  buildAllGrids();
+  placeMeshes(buildAllMeshes());
+  fitCamera();
+  if(dataPanelOpen) renderPanel();
+}
+
+function setGridN(n){
+  GRID_N=n;
+  document.querySelectorAll('.gbtn').forEach(b=>{
+    b.className='btn gbtn'+(parseInt(b.dataset.n)===n?' on':'');
+  });
+  regen();
+}
+
+let orbitAuto=true;
+function toggleOrbit(){
+  orbitAuto=!orbitAuto;
+  const b=document.getElementById('btnOrbit');
+  b.textContent=`⊙ orbit: ${orbitAuto?'on':'off'}`;
+  b.className='btn'+(orbitAuto?' on':'');
+}
+function toggleWire(){
+  wireMode=!wireMode;
+  const b=document.getElementById('btnWire');
+  b.textContent=`# wire: ${wireMode?'on':'off'}`;
+  b.className='btn'+(wireMode?' on':'');
+  for(const m of chunkMeshes) m.material.wireframe=wireMode;
+}
+function toggleAO(){
+  useAO=!useAO;
+  const b=document.getElementById('btnAO');
+  b.textContent=`◑ ao: ${useAO?'on':'off'}`;
+  b.className='btn'+(useAO?' on':'');
+  placeMeshes(buildAllMeshes());
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER LOOP
+// ─────────────────────────────────────────────────────────────
+let frameCount=0, lastFPSTime=performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  if(orbitAuto){
+    orbitAngle+=0.0003;
+    const TW=CW*GRID_N, TD=CD*GRID_N, r=Math.max(TW,TD)*0.95;
+    camera.position.x=TW/2+Math.cos(orbitAngle)*r;
+    camera.position.z=TD/2+Math.sin(orbitAngle)*r;
+    camera.position.y=CH*1.15;
+    camera.lookAt(TW/2,CH*0.25,TD/2);
+  } else { controls.update(); }
+  renderer.render(scene,camera);
+  frameCount++;
+  const now=performance.now();
+  if(now-lastFPSTime>=500){
+    document.getElementById('sFPS').textContent=(frameCount/((now-lastFPSTime)/1000)).toFixed(0);
+    frameCount=0; lastFPSTime=now;
+  }
+}
+
+window.addEventListener('resize',()=>{
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+regen();
+loop();
+</script>
+</body>
+</html>
