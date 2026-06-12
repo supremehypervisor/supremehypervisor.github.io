@@ -14,6 +14,11 @@ const NAV_DATA = {
       label: "Demos",
       items: [
         {
+          title:   "Iron & Powder",
+          path:    "demos/Iron-and-powder/index.html",
+          updated: "2026-06-12",
+        },
+        {
           title:   "voxel terrain",
           path:    "demos/Voxel-world/index.html",
           updated: "2026-06-10",
