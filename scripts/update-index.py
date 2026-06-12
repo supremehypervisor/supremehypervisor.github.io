@@ -152,5 +152,15 @@ def main():
     out.write_text(output, encoding="utf-8")
     print(f"[orbital] Written → {out}")
 
+    # Auto-bump ?v= in index.html so browsers never cache stale nav-data.js
+    index = root / "index.html"
+    if index.exists():
+        html = index.read_text(encoding="utf-8")
+        version = str(int(datetime.now(tz=timezone.utc).timestamp()))
+        html = re.sub(r"nav-data\.js\?v=\w+", f"nav-data.js?v={version}", html)
+        html = re.sub(r"nav-data\.js(?!\?)", f"nav-data.js?v={version}", html)
+        index.write_text(html, encoding="utf-8")
+        print(f"[orbital] Cache busted → nav-data.js?v={version}")
+
 if __name__ == "__main__":
     main()

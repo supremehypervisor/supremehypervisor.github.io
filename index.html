@@ -424,7 +424,7 @@
 <!-- MOBILE TOGGLE -->
 <button id="menu-toggle" aria-label="Toggle navigation" onclick="toggleSidebar()">☰</button>
 
-<!-- SIDEBAR (auto-populated by nav-data.js) -->
+<!-- SIDEBAR (auto-populated by nav-data.js?v=1781270181) -->
 <nav id="sidebar">
   <div class="sidebar-logo">
     <span>// Orbital Index</span>
@@ -432,7 +432,7 @@
   </div>
 
   <div class="sidebar-nav" id="sidebar-nav">
-    <!-- Injected by nav-data.js -->
+    <!-- Injected by nav-data.js?v=1781270181 -->
     <div class="nav-section">
       <div class="nav-section-label">Home</div>
       <a href="index.html" class="nav-link active">
@@ -462,7 +462,7 @@
         Use the sidebar to navigate sections, or explore the cards below.
       </p>
       <div class="hero-stats" id="hero-stats">
-        <!-- Populated by nav-data.js -->
+        <!-- Populated by nav-data.js?v=1781270181 -->
         <div class="stat">
           <span class="stat-num" id="stat-projects">—</span>
           <span class="stat-label">Projects</span>
@@ -485,20 +485,20 @@
     <!-- FEATURED SECTION -->
     <div class="section-heading">Featured</div>
     <div class="cards-grid" id="featured-grid">
-      <!-- Populated by nav-data.js or falls back to empty state -->
+      <!-- Populated by nav-data.js?v=1781270181 or falls back to empty state -->
     </div>
 
     <!-- ALL PROJECTS -->
     <div class="section-heading">All Projects</div>
     <div class="cards-grid" id="all-grid">
-      <!-- Populated by nav-data.js -->
+      <!-- Populated by nav-data.js?v=1781270181 -->
     </div>
 
   </div>
 </main>
 
 <!-- NAV DATA — edit this file (or regenerate it with the update script) -->
-<script src="nav-data.js?v=3"></script>
+<script src="nav-data.js?v=1781270181"></script>
 
 <script>
   /* ── Mobile sidebar toggle ──────────────────────────── */
@@ -580,7 +580,7 @@
       if (featuredItems.length > 0) {
         feat.innerHTML = featuredItems.map(cardHTML).join('');
       } else {
-        feat.innerHTML = `<p style="color:var(--muted);font-size:0.8rem">Mark items as <code style="color:var(--accent-soft)">featured: true</code> in nav-data.js to pin them here.</p>`;
+        feat.innerHTML = `<p style="color:var(--muted);font-size:0.8rem">Mark items as <code style="color:var(--accent-soft)">featured: true</code> in nav-data.js?v=1781270181 to pin them here.</p>`;
       }
       all.innerHTML = allItems.map(cardHTML).join('');
     }
