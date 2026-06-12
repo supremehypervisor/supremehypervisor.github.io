@@ -1,0 +1,1758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Iron & Powder</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Share+Tech+Mono&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#12100a;--parchment:#d8c99a;--gold:#c8941a;--gold-dk:#8a6010;
+  --field:#3d5228;--field2:#435830;--mud:#7a5e38;--stone:#6a6050;
+  --blue:#2a4a8a;--blue-lt:#5588dd;--blue-dk:#1a2e5a;
+  --red:#7a1a1a;--red-lt:#cc3333;--red-dk:#4a0a0a;
+  --green-hex:#2e5c1a;--neutral-hex:#4a4a3a;
+  --ui-bg:rgba(10,8,4,0.88);--ui-border:#3a3020;
+}
+body{background:var(--ink);color:var(--parchment);font-family:'Share Tech Mono',monospace;
+  overflow:hidden;width:100vw;height:100vh;display:flex;flex-direction:column;user-select:none}
+#screen-over,#screen-battle{position:absolute;inset:0;display:none;flex-direction:column}
+#screen-over.active,#screen-battle.active{display:flex}
+#over-header{background:rgba(0,0,0,0.6);border-bottom:1px solid var(--ui-border);
+  padding:6px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px;z-index:5}
+#over-header h1{font-family:'IM Fell English',serif;font-size:clamp(1rem,3vw,1.5rem);color:var(--gold)}
+.over-stat{font-size:0.62rem;display:flex;flex-direction:column;align-items:center}
+.over-stat span:first-child{color:#888;letter-spacing:.12em;font-size:.55rem}
+.over-stat span:last-child{color:var(--parchment);font-size:.78rem}
+#over-canvas-wrap{flex:1;overflow:hidden;position:relative;cursor:grab}
+#over-canvas-wrap.grabbing{cursor:grabbing}
+#over-canvas{display:block}
+#over-panel{position:absolute;bottom:0;left:0;right:0;background:var(--ui-bg);
+  border-top:1px solid var(--ui-border);padding:6px 10px;display:flex;flex-wrap:nowrap;
+  gap:6px;align-items:flex-start;z-index:5;overflow-x:auto;overflow-y:hidden}
+.panel-section{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
+.panel-label{font-size:.52rem;letter-spacing:.12em;color:#888;white-space:nowrap}
+.buy-row{display:flex;gap:4px;flex-wrap:nowrap}
+.buy-btn{font-family:'Share Tech Mono',monospace;font-size:.58rem;background:rgba(255,255,255,.07);
+  border:1px solid var(--ui-border);color:var(--parchment);padding:3px 6px;border-radius:2px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.buy-btn:hover:not(:disabled){background:rgba(200,148,26,.2);border-color:var(--gold);color:var(--gold)}
+.buy-btn:disabled{opacity:.3;cursor:default}
+#over-actions{display:flex;gap:4px;flex-shrink:0}
+.act-btn{font-family:'Share Tech Mono',monospace;font-size:.58rem;background:rgba(255,255,255,.07);
+  border:1px solid var(--ui-border);color:var(--parchment);padding:4px 8px;border-radius:2px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.act-btn:hover:not(:disabled){background:rgba(255,255,255,.14);border-color:var(--gold)}
+.act-btn:disabled{opacity:.35;cursor:default}
+.act-btn.danger{border-color:#7a1a1a}
+.act-btn.danger:hover:not(:disabled){background:rgba(200,40,40,.2);border-color:var(--red-lt);color:var(--red-lt)}
+#over-hex-info{font-size:.58rem;width:130px;flex-shrink:0;line-height:1.4}
+#over-log{position:absolute;top:50px;right:8px;width:200px;max-height:150px;
+  overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;
+  background:rgba(0,0,0,.7);border:1px solid var(--ui-border);border-radius:2px;padding:5px 8px;font-size:.58rem;z-index:6}
+.olog{line-height:1.6;color:#b0a070}
+.olog.blue{color:var(--blue-lt)}.olog.red{color:var(--red-lt)}.olog.sys{color:#888;font-style:italic}
+.olog.event{color:#e0c060;font-style:italic}
+#battle-header{background:rgba(0,0,0,.65);border-bottom:1px solid var(--ui-border);
+  padding:5px 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px;z-index:5}
+.battle-stat{font-size:.6rem}.battle-stat b{color:var(--gold)}
+#battle-canvas-wrap{flex:1;overflow:hidden;position:relative;cursor:crosshair;background:#2a3a1a}
+#battle-canvas{display:block}
+#battle-panel{background:var(--ui-bg);border-top:1px solid var(--ui-border);
+  padding:6px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;z-index:5}
+.bpanel-btn{font-family:'Share Tech Mono',monospace;font-size:.62rem;background:rgba(255,255,255,.07);
+  border:1px solid var(--ui-border);color:var(--parchment);padding:5px 10px;border-radius:2px;cursor:pointer;transition:all .15s}
+.bpanel-btn:hover:not(:disabled){background:rgba(255,255,255,.14);border-color:var(--gold)}
+.bpanel-btn:disabled{opacity:.3;cursor:default}
+.bpanel-btn.active{background:rgba(200,148,26,.2);border-color:var(--gold);color:var(--gold)}
+#battle-log{position:absolute;bottom:52px;right:6px;width:210px;max-height:150px;
+  overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;
+  background:rgba(0,0,0,.75);border:1px solid var(--ui-border);border-radius:2px;padding:5px 8px;font-size:.58rem;z-index:6}
+.blog{line-height:1.6;color:#b0a070}
+.blog.combat{color:var(--gold)}.blog.blue{color:var(--blue-lt)}.blog.red{color:var(--red-lt)}.blog.sys{color:#888;font-style:italic}
+#sel-info{font-size:.6rem;color:var(--parchment);flex:1;min-width:80px}
+.modal{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:var(--ui-bg);border:2px solid var(--gold);border-radius:4px;
+  padding:22px 28px;text-align:center;z-index:20;display:none;min-width:240px;max-width:320px}
+.modal.show{display:block}
+.modal h2{font-family:'IM Fell English',serif;font-size:1.5rem;color:var(--gold)}
+.modal p{font-size:.68rem;margin-top:6px;color:#b0a070}
+.modal button{margin-top:12px;font-family:'Share Tech Mono',monospace;font-size:.68rem;
+  background:rgba(255,255,255,.1);border:1px solid var(--gold);color:var(--parchment);
+  padding:7px 18px;border-radius:2px;cursor:pointer}
+.modal button:hover{background:rgba(200,148,26,.3)}
+</style>
+</head>
+<body>
+
+<!-- OVERWORLD -->
+<div id="screen-over" class="active">
+  <div id="over-header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h1>Iron &amp; Powder</h1>
+      <button class="act-btn danger" style="font-size:.55rem;padding:3px 8px" onclick="restartGame()">New Game</button>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div class="over-stat"><span>TREASURY</span><span id="ov-gold">$0</span></div>
+      <div class="over-stat"><span>INCOME/TURN</span><span id="ov-income">$0</span></div>
+      <div class="over-stat"><span>RATIONS</span><span id="ov-rations">0</span></div>
+      <div class="over-stat"><span>BULLETS</span><span id="ov-bullets">0</span></div>
+      <div class="over-stat"><span>MARCH</span><span id="ov-march">—</span></div>
+      <div class="over-stat"><span>TURN</span><span id="ov-turn">1</span></div>
+      <div class="over-stat"><span>PHASE</span><span id="ov-phase">Your Move</span></div>
+    </div>
+  </div>
+  <div id="over-canvas-wrap">
+    <canvas id="over-canvas"></canvas>
+    <div id="over-log"></div>
+  </div>
+  <div id="over-panel">
+    <div class="panel-section">
+      <div class="panel-label">SELECTED HEX</div>
+      <div id="over-hex-info">— tap a hex —</div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-label">BUY UNITS</div>
+      <div class="buy-row">
+        <button class="buy-btn" id="buy-inf"    onclick="buyUnit('infantry')">Infantry $20</button>
+        <button class="buy-btn" id="buy-cav"    onclick="buyUnit('cavalry')">Cavalry $40</button>
+        <button class="buy-btn" id="buy-can"    onclick="buyUnit('cannon')">Cannon $60</button>
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-label">BUY SUPPLIES &amp; UPGRADES</div>
+      <div class="buy-row">
+        <button class="buy-btn" id="buy-rations" onclick="buySupply('rations')">Rations ×5 $10</button>
+        <button class="buy-btn" id="buy-bullets" onclick="buySupply('bullets')">Bullets ×5 $15</button>
+        <button class="buy-btn" id="buy-march-upgrade" onclick="buyMarchUpgrade()">March Upgrade —</button>
+      </div>
+    </div>
+    <div id="over-actions" class="panel-section">
+      <div class="panel-label" style="width:100%">ACTIONS</div>
+      <button class="act-btn" id="btn-march"   onclick="marchUnits()"  disabled>March →</button>
+      <button class="act-btn" id="btn-heal"    onclick="healUnits()"   disabled>Field Rations 🩹</button>
+      <button class="act-btn" id="btn-endturn" onclick="overEndTurn()">End Turn</button>
+    </div>
+  </div>
+  <div class="modal" id="modal-over">
+    <h2 id="modal-over-title">Victory!</h2>
+    <p id="modal-over-body">You have conquered the field.</p>
+    <p id="modal-over-stats" style="font-size:.6rem;color:#888;margin-top:6px"></p>
+    <button onclick="restartGame()">New Campaign</button>
+  </div>
+  <!-- Random event modal -->
+  <div class="modal" id="modal-event">
+    <h2 id="modal-event-title">⚑ Dispatch</h2>
+    <p id="modal-event-source" style="font-size:.58rem;letter-spacing:.1em;margin-top:4px"></p>
+    <p id="modal-event-body">Something happened.</p>
+    <button onclick="dismissEvent()">Understood</button>
+  </div>
+</div>
+
+<!-- BATTLE -->
+<div id="screen-battle">
+  <div id="battle-header">
+    <div class="battle-stat">⚔ <b id="bh-hex">Battle</b></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div class="battle-stat">Union: <b id="bh-blue">0</b></div>
+      <div class="battle-stat">Enemy: <b id="bh-red">0</b></div>
+      <div class="battle-stat">Turn: <b id="bh-turn">1</b></div>
+      <div class="battle-stat">Bullets: <b id="bh-bullets">0</b></div>
+      <div class="battle-stat" id="bh-phase">Select a unit</div>
+    </div>
+  </div>
+  <div id="battle-canvas-wrap">
+    <canvas id="battle-canvas"></canvas>
+    <div id="battle-log"></div>
+  </div>
+  <div id="battle-panel">
+    <div id="sel-info">—</div>
+    <button class="bpanel-btn" id="bb-move"   onclick="bSetMode('move')"   disabled>Move</button>
+    <button class="bpanel-btn" id="bb-attack" onclick="bSetMode('attack')" disabled>Attack</button>
+    <button class="bpanel-btn" id="bb-end"    onclick="bEndPlayerTurn()">End Turn</button>
+  </div>
+  <div class="modal" id="modal-battle">
+    <h2 id="modal-battle-title">Victory!</h2>
+    <p id="modal-battle-body">The field is yours.</p>
+    <button onclick="battleDone()">Return to Map</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════
+//  SHARED
+// ═══════════════════════════════════════
+const UNIT_DEF = {
+  infantry:{ sym:'+', moves:2, atkRange:5, hp:3, maxHp:3, dice:1, label:'Infantry', cost:20 },
+  cavalry: { sym:'×', moves:4, atkRange:1, hp:2, maxHp:2, dice:2, label:'Cavalry',  cost:40 },
+  cannon:  { sym:'⊕', moves:1, atkRange:3, hp:2, maxHp:2, dice:2, label:'Cannon',   cost:60 },
+};
+const HEX_UNIT_CAP = 20; // max of each unit type per hex
+function hexCapAdd(h, type, n){ h.units[type]=Math.min(HEX_UNIT_CAP, h.units[type]+(n||1)); }
+function hexAtCap(h, type){ return h.units[type]>=HEX_UNIT_CAP; }
+const D4VEC = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
+
+function rollDice(n){ return Array.from({length:Math.max(1,n)},()=>Math.floor(Math.random()*6)+1); }
+function roll1d6(){ return Math.floor(Math.random()*6)+1; }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// ═══════════════════════════════════════
+//  OVERWORLD STATE
+// ═══════════════════════════════════════
+const HEX_COLS=9, HEX_ROWS=7;
+const HEX_R=52;
+let ovHexes=[], ovSelected=null, ovMarchFrom=null;
+let ovTurn=1, ovPhase='player';
+let treasury=120, aiTreasury=80;
+let rations=10, bullets=10;
+let marchUpgradeLevel=0;
+const MARCH_UPGRADE_COSTS=[100,200,300];
+let ovHealUsed=false; // one heal action per player turn
+let ovMarchedHexes=new Set(); // hex ids that have already marched this turn
+let eventPending=null;
+
+// Random event table (civil war flavor)
+const EVENTS=[
+  {title:'Desertions',body:'Three men slipped off in the night. Lose 1 infantry from your largest hex.',effect:'lose_inf'},
+  {title:'Foragers Return',body:'A party returns loaded with provisions. +8 rations.',effect:'gain_rations_8'},
+  {title:'Powder Cache Found',body:'An abandoned supply dump in the woods. +6 bullets.',effect:'gain_bullets_6'},
+  {title:'Fever Spreads',body:'The camp is ill. All your hexes lose 1 infantry unit (min 0).',effect:'fever'},
+  {title:'Loyal Volunteers',body:'Local men join the cause. +2 infantry to your capital hex.',effect:'volunteers'},
+  {title:'Railroad Sabotage',body:'Enemy spies delay your supplies. Lose 5 rations.',effect:'lose_rations_5'},
+  {title:'Sympathetic Merchant',body:'A local trader offers credit. +$15 to treasury.',effect:'gain_gold_15'},
+  {title:'Ambush!',body:'A scouting party is cut off. One cavalry lost from a random hex.',effect:'lose_cav'},
+  {title:'Muddy Roads',body:'Heavy rains bog everything down. All movement slowed this turn.',effect:'mud_roads'},
+  {title:'Captured Dispatch',body:'You intercept enemy orders. See the enemy\'s next move — they hold position this turn.',effect:'hold_ai'},
+  {title:'Contraband Cotton',body:'A lucrative side deal. +$20 treasury.',effect:'gain_gold_20'},
+  {title:'Artillery Misfire',body:'A cannon bursts in training. Lose 1 cannon from your largest hex.',effect:'lose_cannon'},
+];
+
+function triggerRandomEvent(source='player'){
+  const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  applyEvent(ev, source);
+  if(source==='enemy'){
+    oLog(`⚑ ${ev.title}: ${ev.body}`,'red');
+    updateOverUI(); renderOver();
+    return;
+  }
+  const sourceEl=document.getElementById('modal-event-source');
+  sourceEl.textContent='— From your scouts —';
+  sourceEl.style.color='var(--blue-lt)';
+  document.getElementById('modal-event-title').textContent='⚑ '+ev.title;
+  document.getElementById('modal-event-body').textContent=ev.body;
+  document.getElementById('modal-event').classList.add('show');
+}
+function applyEvent(ev, source='player'){
+  const blueHexes=ovHexes.filter(h=>h.owner==='blue');
+  const redHexes=ovHexes.filter(h=>h.owner==='red');
+  // For enemy-sourced cards, good effects go to red, bad effects go to blue (already correct for most)
+  // We just need to guard that 'volunteers' and gold gains don't always go to blue
+  switch(ev.effect){
+    case 'lose_inf':{
+      const h=blueHexes.sort((a,b)=>(b.units.infantry)-(a.units.infantry))[0];
+      if(h&&h.units.infantry>0){h.units.infantry--;oLog(`Event: lost an infantryman.`,'event');}break;}
+    case 'gain_rations_8': rations+=8; oLog('Event: +8 rations.','event'); break;
+    case 'gain_bullets_6': bullets+=6; oLog('Event: +6 bullets.','event'); break;
+    case 'fever':
+      blueHexes.forEach(h=>{if(h.units.infantry>0)h.units.infantry--;});
+      oLog('Event: fever sweeps the camps.','event'); break;
+    case 'volunteers':{
+      if(source==='enemy'){
+        const h=redHexes.sort((a,b)=>hexCombatUnits(b)-hexCombatUnits(a))[0];
+        if(h){hexCapAdd(h,'infantry',2);oLog('Event: enemy receives volunteer reinforcements!','event');}
+      } else {
+        const h=blueHexes[0];
+        if(h){hexCapAdd(h,'infantry',2);oLog('Event: +2 volunteer infantry.','event');}
+      }
+      break;}
+    case 'lose_rations_5': rations=Math.max(0,rations-5); oLog('Event: -5 rations.','event'); break;
+    case 'gain_gold_15':
+      if(source==='enemy'){ aiTreasury+=15; oLog('Event: enemy receives $15 in supplies.','event'); }
+      else { treasury+=15; oLog('Event: +$15 treasury.','event'); }
+      break;
+    case 'lose_cav':{
+      const h=shuffle(blueHexes.filter(h=>h.units.cavalry>0))[0];
+      if(h){h.units.cavalry--;oLog('Event: cavalry lost to ambush.','event');}break;}
+    case 'mud_roads':
+      eventPending='mud_roads';
+      oLog('Event: muddy roads, movement penalized this turn.','event'); break;
+    case 'hold_ai': eventPending='hold_ai'; oLog('Event: enemy holds position this turn.','event'); break;
+    case 'gain_gold_20':
+      if(source==='enemy'){ aiTreasury+=20; oLog('Event: enemy war chest grows by $20.','event'); }
+      else { treasury+=20; oLog('Event: +$20 contraband.','event'); }
+      break;
+    case 'lose_cannon':{
+      const h=blueHexes.sort((a,b)=>b.units.cannon-a.units.cannon)[0];
+      if(h&&h.units.cannon>0){h.units.cannon--;oLog('Event: cannon lost to misfire.','event');}break;}
+  }
+}
+function dismissEvent(){
+  document.getElementById('modal-event').classList.remove('show');
+  updateOverUI(); renderOver();
+}
+
+// ═══════════════════════════════════════
+//  HEX GEOMETRY  (pointy-top, row-offset)
+// ═══════════════════════════════════════
+function hexCenterFlat(col,row){
+  const cw=Math.sqrt(3)*HEX_R; // horiz spacing
+  const ch=HEX_R*1.5;          // vert spacing
+  const x=50+col*cw+(row%2===1?cw/2:0);
+  const y=50+row*ch;
+  return {x,y};
+}
+function hexCorners(cx,cy,r){
+  // pointy-top: first corner points up-right (30 deg offset)
+  return Array.from({length:6},(_,i)=>{
+    const a=Math.PI/180*(60*i+30);
+    return [cx+r*Math.cos(a),cy+r*Math.sin(a)];
+  });
+}
+function pixToHex(sx,sy){
+  // sx,sy are already in world space (pan and scale removed)
+  let best=null,bestD=Infinity;
+  ovHexes.forEach(h=>{
+    const d=Math.hypot(sx-h.cx,sy-h.cy);
+    if(d<bestD){bestD=d;best=h;}
+  });
+  return bestD<HEX_R*1.1?best:null;
+}
+
+// ═══════════════════════════════════════
+//  OVERWORLD INIT
+// ═══════════════════════════════════════
+const HEX_TYPES=['field','field','field','field','town','farm','mystery'];
+
+function initOverworld(){
+  ovHexes=[];
+  marchUpgradeLevel=0;
+  eventPending=null;
+
+  // Assign special hex types — towns, farms, mystery hexes
+  // We'll sprinkle them in neutral territory mostly
+  for(let c=0;c<HEX_COLS;c++){
+    for(let r=0;r<HEX_ROWS;r++){
+      const {x,y}=hexCenterFlat(c,r);
+      let owner='neutral';
+      if(c<=1) owner='blue';
+      if(c>=HEX_COLS-2) owner='red';
+
+      // pick hex special type
+      let hexType='field';
+      let income=Math.floor(Math.random()*4)+1; // base 1-4
+      if(owner==='neutral'){
+        const roll=Math.random();
+        if(roll<0.1){ hexType='town'; income=10; }
+        else if(roll<0.25){ hexType='farm'; income=3; }
+        else if(roll<0.38){ hexType='mystery'; }
+      }
+
+      ovHexes.push({
+        id:uid(), col:c, row:r, cx:x, cy:y,
+        income, owner, hexType,
+        units:{infantry:0,cavalry:0,cannon:0},
+        contested:false,
+        rationOutput: hexType==='farm'?5:0,
+      });
+    }
+  }
+
+  // Starter units
+  const h03=getHex(0,3); h03.units={infantry:3,cavalry:1,cannon:1};
+  const h12=getHex(1,2); h12.units={infantry:2,cavalry:0,cannon:0};
+  getHex(HEX_COLS-1,3).units={infantry:3,cavalry:1,cannon:1};
+  getHex(HEX_COLS-2,2).units={infantry:2,cavalry:0,cannon:0};
+
+  treasury=120; aiTreasury=80;
+  rations=10; bullets=10;
+  ovScale=1.0; ovPan={x:0,y:0};
+  ovTurn=1; ovPhase='player'; ovHealUsed=false; ovMarchedHexes=new Set();
+  ovSelected=null; ovMarchFrom=null;
+  clearOLog();
+  oLog('Campaign begins. Seize the field!','sys');
+  updateOverUI(); renderOver();
+}
+
+function getHex(c,r){ return ovHexes.find(h=>h.col===c&&h.row===r); }
+function hexAdj(h){
+  // Pointy-top, row-offset: even rows offset left, odd rows offset right
+  const dirs = h.row%2===0
+    ? [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1]]
+    : [[-1,0],[1,0],[0,-1],[0,1],[1,-1],[1,1]];
+  return dirs.map(([dc,dr])=>getHex(h.col+dc,h.row+dr)).filter(Boolean);
+}
+function hexUnitsTotal(h){ return h.units.infantry+h.units.cavalry+h.units.cannon; }
+function hexCombatUnits(h){ return h.units.infantry+h.units.cavalry+h.units.cannon; }
+function ovIncome(owner){ return ovHexes.filter(h=>h.owner===owner).reduce((s,h)=>s+h.income,0); }
+function ovRationOutput(){ return ovHexes.filter(h=>h.owner==='blue').reduce((s,h)=>s+(h.rationOutput||0),0); }
+
+// ═══════════════════════════════════════
+//  OVERWORLD CANVAS
+// ═══════════════════════════════════════
+const ovCanvas=document.getElementById('over-canvas');
+const ovCtx=ovCanvas.getContext('2d');
+let ovPan={x:0,y:0}, ovDragStart=null, ovPanStart=null, ovIsDragging=false;
+
+function fitOverCanvas(){
+  const wrap=document.getElementById('over-canvas-wrap');
+  ovCanvas.width=wrap.clientWidth||window.innerWidth;
+  ovCanvas.height=wrap.clientHeight||window.innerHeight-160;
+  renderOver();
+}
+window.addEventListener('resize',()=>{ fitOverCanvas(); fitBattleCanvas(); });
+
+function renderOver(){
+  const cv=ovCanvas, ctx=ovCtx;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.translate(ovPan.x,ovPan.y);
+  ctx.scale(ovScale,ovScale);
+  ovHexes.forEach(h=>drawHex(ctx,h));
+  ctx.restore();
+}
+
+function drawHex(ctx,h){
+  const pts=hexCorners(h.cx,h.cy,HEX_R-2);
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.closePath();
+
+  // Base color by owner
+  let baseColor;
+  if(h.owner==='blue') baseColor='#1e3060';
+  else if(h.owner==='red') baseColor='#4a1010';
+  else baseColor='#2e2e20';
+
+  // Special hex tints for neutral/unowned
+  if(h.hexType==='town' && h.owner==='neutral') baseColor='#3a3010';
+  if(h.hexType==='farm' && h.owner==='neutral') baseColor='#1e3a10';
+  if(h.hexType==='mystery') baseColor='#f8f8f4'; // white-ish mystery
+
+  ctx.fillStyle=baseColor;
+  ctx.fill();
+
+  // Texture
+  ctx.fillStyle='rgba(255,255,255,0.03)';
+  for(let i=0;i<6;i++){
+    const nx=h.cx+Math.sin(h.col*7.3+h.row*3.1+i)*18;
+    const ny=h.cy+Math.cos(h.col*2.9+h.row*5.7+i)*14;
+    ctx.fillRect(nx,ny,3,3);
+  }
+
+  // Selection / march highlight
+  const isSel=ovSelected&&ovSelected.id===h.id;
+  const isMarchFrom=ovMarchFrom&&ovMarchFrom.id===h.id;
+  const isMarchTarget=ovMarchFrom&&ovReachable(ovMarchFrom).find(a=>a.id===h.id);
+
+  if(isMarchTarget){
+    ctx.fillStyle='rgba(200,148,26,0.22)';
+    ctx.beginPath();
+    pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.strokeStyle= isSel||isMarchFrom ? '#c8941a' : h.owner==='blue'?'#3355aa':h.owner==='red'?'#882222':'#555540';
+  ctx.lineWidth= isSel||isMarchFrom ? 2.5 : 1;
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.closePath();
+  ctx.stroke();
+
+  // Mystery hex: semi-transparent white veil so units still visible beneath
+  if(h.hexType==='mystery'){
+    ctx.fillStyle='rgba(240,235,220,0.55)';
+    ctx.beginPath();
+    pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.closePath();
+    ctx.fill();
+    // Unit count first (so ? draws on top)
+    const symsM={infantry:'+',cavalry:'×',cannon:'⊕'};
+    const tcM={blue:'#2244aa',red:'#881111'};
+    let dxM=-18;
+    ['infantry','cavalry','cannon'].forEach(t=>{
+      const n=h.units[t]; if(!n) return;
+      ctx.fillStyle=tcM[h.owner]||'#555';
+      ctx.font='bold 10px "Share Tech Mono"';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(symsM[t]+'×'+n, h.cx+dxM, h.cy+10);
+      dxM+=22;
+    });
+    // ? glyph
+    ctx.fillStyle='rgba(20,15,5,0.75)';
+    ctx.font='bold 22px "IM Fell English"';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('?',h.cx,h.cy-6);
+    return;
+  }
+
+  // Special type icons
+  if(h.hexType==='town'){
+    ctx.fillStyle='rgba(220,200,100,0.55)';
+    ctx.font='13px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🏛',h.cx,h.cy-22);
+  }
+  if(h.hexType==='farm'){
+    ctx.font='12px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🌾',h.cx,h.cy-22);
+  }
+
+  // Income value
+  ctx.fillStyle='rgba(200,180,100,0.75)';
+  ctx.font='bold 11px "Share Tech Mono"';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  let incomeLabel = '$'+h.income;
+  if(h.hexType==='farm') incomeLabel += ' +5🥩';
+  ctx.fillText(incomeLabel, h.cx, h.cy-10);
+
+  // Unit count
+  const syms={infantry:'+',cavalry:'×',cannon:'⊕'};
+  const teamColor={blue:'#5588dd',red:'#cc3333'};
+  let dx=-18;
+  ['infantry','cavalry','cannon'].forEach(t=>{
+    const n=h.units[t];
+    if(!n) return;
+    ctx.fillStyle=teamColor[h.owner]||'#aaa';
+    ctx.font='bold 10px "Share Tech Mono"';
+    ctx.fillText(syms[t]+'×'+n, h.cx+dx, h.cy+8);
+    dx+=22;
+  });
+
+  // Contested marker
+  if(h.contested){
+    ctx.fillStyle='rgba(255,80,80,0.45)';
+    ctx.beginPath(); ctx.arc(h.cx,h.cy-30,6,0,Math.PI*2); ctx.fill();
+  }
+}
+
+// ═══════════════════════════════════════
+//  OVERWORLD INPUT
+// ═══════════════════════════════════════
+let ovScale=1.0;
+let ovPinchStartDist=null, ovPinchStartScale=1.0;
+
+const ovWrap=document.getElementById('over-canvas-wrap');
+ovWrap.addEventListener('mousedown',ovPointerDown);
+ovWrap.addEventListener('mousemove',ovPointerMove);
+ovWrap.addEventListener('mouseup',ovPointerUp);
+ovWrap.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if(e.touches.length===2){
+    ovPinchStartDist=Math.hypot(
+      e.touches[0].clientX-e.touches[1].clientX,
+      e.touches[0].clientY-e.touches[1].clientY);
+    ovPinchStartScale=ovScale;
+  } else {
+    ovPointerDown(e);
+  }
+},{passive:false});
+ovWrap.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===2&&ovPinchStartDist){
+    const dist=Math.hypot(
+      e.touches[0].clientX-e.touches[1].clientX,
+      e.touches[0].clientY-e.touches[1].clientY);
+    ovScale=Math.min(2.5,Math.max(0.4,ovPinchStartScale*(dist/ovPinchStartDist)));
+    renderOver();
+  } else {
+    ovPointerMove(e);
+  }
+},{passive:false});
+ovWrap.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(e.touches.length<2) ovPinchStartDist=null;
+  ovPointerUp(e);
+},{passive:false});
+
+function ovGetPt(e){
+  const r=ovCanvas.getBoundingClientRect();
+  const t=e.changedTouches?e.changedTouches[0]:e.touches?e.touches[0]:e;
+  if(!t) return null;
+  return {x:t.clientX-r.left, y:t.clientY-r.top};
+}
+function ovPointerDown(e){
+  const pt=ovGetPt(e); if(!pt) return;
+  ovDragStart={...pt}; ovPanStart={...ovPan}; ovIsDragging=false;
+  ovWrap.classList.add('grabbing');
+}
+function ovPointerMove(e){
+  const pt=ovGetPt(e); if(!pt||!ovDragStart) return;
+  const dx=pt.x-ovDragStart.x, dy=pt.y-ovDragStart.y;
+  if(Math.hypot(dx,dy)>12) ovIsDragging=true;
+  if(ovIsDragging){ ovPan.x=ovPanStart.x+dx; ovPan.y=ovPanStart.y+dy; renderOver(); }
+}
+function ovPointerUp(e){
+  ovWrap.classList.remove('grabbing');
+  const pt=ovGetPt(e);
+  if(!ovIsDragging && pt){
+    const wx=(pt.x-ovPan.x)/ovScale, wy=(pt.y-ovPan.y)/ovScale;
+    const h=pixToHex(wx,wy);
+    if(h) ovSelectHex(h);
+  }
+  ovDragStart=null; ovIsDragging=false;
+}
+
+function ovMarchRange(){ return 1 + marchUpgradeLevel; }
+
+// Returns all hexes reachable within march range, passing through non-enemy hexes
+function ovReachable(from){
+  const range=ovMarchRange();
+  const visited=new Map();
+  const queue=[{h:from, steps:0}];
+  visited.set(from.id, 0);
+  const reachable=[];
+  while(queue.length){
+    const {h, steps, noExpand}=queue.shift();
+    if(steps>0) reachable.push(h);
+    if(steps>=range||noExpand) continue;
+    hexAdj(h).forEach(nb=>{
+      if(visited.has(nb.id)) return;
+      visited.set(nb.id, steps+1);
+      // Always enqueue so it gets dequeued and added to reachable,
+      // but don't expand further if it's enemy territory
+      queue.push({h:nb, steps:steps+1, noExpand:nb.owner==='red'});
+    });
+  }
+  return reachable;
+}
+
+function ovSelectHex(h){
+  if(ovPhase!=='player') return;
+
+  // Handle march target selection first
+  if(ovMarchFrom){
+    if(h.id===ovMarchFrom.id){ ovMarchFrom=null; updateOverUI(); renderOver(); return; }
+    const reachable=ovReachable(ovMarchFrom);
+    const target=reachable.find(a=>a.id===h.id);
+    if(target){
+      // Mystery hex: reveal on march-in
+      if(h.hexType==='mystery'){
+        h.hexType='field';
+        h.income=Math.floor(Math.random()*4)+1;
+        oLog('Scouts enter the unknown — a dispatch arrives...','event');
+        setTimeout(triggerRandomEvent, 300);
+      }
+      doMarch(ovMarchFrom,h);
+      ovMarchFrom=null;
+      updateOverUI(); renderOver();
+      return;
+    }
+    // Clicked outside range — cancel march
+    ovMarchFrom=null;
+  }
+
+  // Mystery hex: can only be revealed by marching into it
+  if(h.hexType==='mystery'){
+    oLog('Send a unit to scout this position — use March.','sys');
+    ovSelected=h;
+    updateOverUI(); renderOver();
+    return;
+  }
+
+  ovSelected=h;
+  updateOverUI(); renderOver();
+}
+
+// ═══════════════════════════════════════
+//  OVERWORLD ACTIONS
+// ═══════════════════════════════════════
+function buyUnit(type){
+  if(!ovSelected||ovSelected.owner!=='blue') return;
+  if(ovMarchedHexes.has(ovSelected.id)){ oLog('Cannot recruit into a hex that has already marched this turn.','sys'); return; }
+  if(hexAtCap(ovSelected,type)){ oLog(`${UNIT_DEF[type].label} at capacity (${HEX_UNIT_CAP}) on this hex.`,'sys'); return; }
+  const cost=UNIT_DEF[type].cost;
+  if(treasury<cost){ oLog('Not enough gold.','sys'); return; }
+  treasury-=cost;
+  hexCapAdd(ovSelected,type);
+  ovMarchedHexes.add(ovSelected.id); // units just recruited can't march this turn
+  oLog(`Bought ${UNIT_DEF[type].label} for $${cost}. Units need time to form up.`,'blue');
+  updateOverUI(); renderOver();
+}
+
+function buyMarchUpgrade(){
+  if(ovPhase!=='player'){ oLog('Not your turn.','sys'); return; }
+  if(marchUpgradeLevel>=3){ oLog('March already at maximum (III).','sys'); return; }
+  const cost=MARCH_UPGRADE_COSTS[marchUpgradeLevel];
+  if(treasury<cost){ oLog(`Not enough gold. Need $${cost}.`,'sys'); return; }
+  treasury-=cost;
+  marchUpgradeLevel++;
+  oLog(`March Upgrade ${['I','II','III'][marchUpgradeLevel-1]} purchased! Armies can march ${1+marchUpgradeLevel} hexes.`,'blue');
+  updateOverUI();
+}
+
+function buySupply(type){
+  if(ovPhase!=='player'){ oLog('Not your turn.','sys'); return; }
+  if(type==='rations'){
+    if(treasury<10){ oLog('Not enough gold.','sys'); return; }
+    treasury-=10; rations+=5;
+    oLog('Bought 5 rations.','blue');
+  } else if(type==='bullets'){
+    if(treasury<15){ oLog('Not enough gold.','sys'); return; }
+    treasury-=15; bullets+=5;
+    oLog('Bought 5 bullets.','blue');
+  }
+  updateOverUI();
+}
+
+function marchUnits(){
+  if(!ovSelected||ovSelected.owner!=='blue'||hexCombatUnits(ovSelected)===0) return;
+  if(ovMarchedHexes.has(ovSelected.id)){ oLog('These units have already marched this turn.','sys'); return; }
+  ovMarchFrom=ovSelected;
+  oLog('Select adjacent hex to march into.','sys');
+  updateOverUI(); renderOver();
+}
+
+// Heal: costs 1 ration per unit in hex, restores 1 HP each, uses your action for the turn
+function healUnits(){
+  if(!ovSelected||ovSelected.owner!=='blue'||ovPhase!=='player') return;
+  if(ovHealUsed){ oLog('Already issued field rations this turn.','sys'); return; }
+  const h=ovSelected;
+  const total=hexCombatUnits(h);
+  if(total===0){ oLog('No units to heal here.','sys'); return; }
+  if(rations<total){ oLog(`Need ${total} rations to treat ${total} unit${total>1?'s':''}. Only ${rations} left.`,'red'); return; }
+  rations-=total;
+  // Each unit type: track damage via a per-hex damage pool
+  // Units in overworld don't track individual HP, but we store a hex-level damage counter
+  // We represent it as h.damage = {infantry, cavalry, cannon} missing HP
+  if(!h.damage) h.damage={infantry:0,cavalry:0,cannon:0};
+  let healed=0;
+  ['infantry','cavalry','cannon'].forEach(t=>{
+    if(h.damage[t]>0){ h.damage[t]--; healed++; }
+  });
+  if(!h.healProgress) h.healProgress=0;
+  h.healProgress+=healed;
+  ovHealUsed=true;
+  oLog(`Field rations issued: ${total} ration${total>1?'s':''} spent, ${healed} HP restored.`,'blue');
+  updateOverUI(); renderOver();
+}
+
+function doMarch(from,to){
+  ovMarchFrom=null;
+  ovMarchedHexes.add(from.id);
+  ovMarchedHexes.add(to.id); // destination can't march again this turn
+  if(to.owner==='blue'){
+    ['infantry','cavalry','cannon'].forEach(t=>{ hexCapAdd(to,t,from.units[t]); from.units[t]=0; });
+    oLog('Units merged into friendly hex (capped at 20 per type).','blue');
+    updateOverUI(); renderOver();
+    return;
+  }
+  if(to.owner==='neutral'){
+    to.owner='blue';
+    ['infantry','cavalry','cannon'].forEach(t=>{ hexCapAdd(to,t,from.units[t]); from.units[t]=0; });
+    const bonus = to.hexType==='town'?' (Town captured! +$10/turn)':to.hexType==='farm'?' (Farm! +5 rations/turn)':'';
+    oLog(`Union captures ${to.hexType} hex ($${to.income}/turn).${bonus}`,'blue');
+    updateOverUI(); renderOver();
+    return;
+  }
+  oLog('⚔ Marching on enemy territory!','blue');
+  to.contested=true;
+  startBattle(from,to);
+}
+
+function overEndTurn(){
+  if(ovPhase!=='player') return;
+
+  // Collect income
+  const inc=ovIncome('blue');
+  treasury+=inc;
+  oLog(`Collected $${inc} income.`,'blue');
+
+  // Farm rations
+  const ratOut=ovRationOutput();
+  if(ratOut>0){ rations+=ratOut; oLog(`Farms yield ${ratOut} rations.`,'blue'); }
+
+  // Consume rations for blue units
+  let rationCost=0;
+  ovHexes.filter(h=>h.owner==='blue').forEach(h=>{
+    rationCost+=h.units.infantry*1 + h.units.cavalry*2;
+  });
+  if(rationCost>0){
+    if(rations>=rationCost){
+      rations-=rationCost;
+      oLog(`Rations consumed: ${rationCost}.`,'sys');
+    } else {
+      oLog(`STARVING! Only ${rations} rations for ${rationCost} needed. Units suffer!`,'red');
+      // Attrition: lose 1 random infantry per 3 missing rations
+      const deficit=rationCost-rations;
+      rations=0;
+      const blueHexes=ovHexes.filter(h=>h.owner==='blue');
+      for(let i=0;i<Math.ceil(deficit/3);i++){
+        const h=shuffle(blueHexes.filter(h=>h.units.infantry>0))[0];
+        if(h) h.units.infantry--;
+      }
+    }
+  }
+
+  // Tick mud_roads event (lasts 1 turn)
+  if(eventPending==='mud_roads') eventPending=null; // clears after affecting battle move
+
+  ovPhase='ai';
+  document.getElementById('ov-phase').textContent='Enemy Turn';
+  updateOverUI(); renderOver();
+  setTimeout(runOverAI, 600);
+}
+
+// ═══════════════════════════════════════
+//  AI OVERWORLD
+// ═══════════════════════════════════════
+function runOverAI(){
+  const redInc=ovIncome('red');
+  aiTreasury+=redInc;
+
+  const redHexes=()=>ovHexes.filter(h=>h.owner==='red');
+
+  // --- BUYING: spread infantry to every hex on the frontier, stack heavier on rear ---
+  // Identify frontier hexes (adjacent to non-red)
+  const frontier=redHexes().filter(h=>hexAdj(h).some(a=>a.owner!=='red'));
+  const rear=redHexes().filter(h=>!frontier.find(f=>f.id===h.id));
+
+  // Buy infantry on every frontier hex with room first (spam expansion)
+  let buying=true;
+  while(buying&&aiTreasury>=20){
+    buying=false;
+    // Prioritize frontier hexes that have NO units — drop 1 infantry to enable march
+    const empty=frontier.filter(h=>hexCombatUnits(h)===0);
+    if(empty.length&&aiTreasury>=20){
+      hexCapAdd(empty[0],'infantry');
+      aiTreasury-=20;
+      buying=true;
+      continue;
+    }
+    // Spread: buy on frontier hexes that have fewest units
+    const thin=frontier.filter(h=>hexCombatUnits(h)<3).sort((a,b)=>hexCombatUnits(a)-hexCombatUnits(b));
+    if(thin.length&&aiTreasury>=20){
+      // Occasionally upgrade to cavalry/cannon on well-stacked hexes
+      const h=thin[0];
+      if(aiTreasury>=60&&h.units.cannon<HEX_UNIT_CAP&&Math.random()<0.2){hexCapAdd(h,'cannon');aiTreasury-=60;}
+      else if(aiTreasury>=40&&h.units.cavalry<HEX_UNIT_CAP&&Math.random()<0.3){hexCapAdd(h,'cavalry');aiTreasury-=40;}
+      else if(h.units.infantry<HEX_UNIT_CAP){hexCapAdd(h,'infantry');aiTreasury-=20;}
+      else buying=false;
+      buying=true;
+      continue;
+    }
+    // Stack rear hexes if frontier is covered
+    if(rear.length&&aiTreasury>=20){
+      const h=rear.sort((a,b)=>hexCombatUnits(a)-hexCombatUnits(b))[0];
+      if(aiTreasury>=40&&h.units.cavalry<HEX_UNIT_CAP){hexCapAdd(h,'cavalry');aiTreasury-=40;}
+      else if(h.units.infantry<HEX_UNIT_CAP){hexCapAdd(h,'infantry');aiTreasury-=20;}
+      else buying=false;
+      buying=true;
+    }
+  }
+
+  let pendingBattles=[];
+
+  if(eventPending==='hold_ai'){
+    eventPending=null;
+    oLog('Enemy holds position (dispatches intercepted).','sys');
+  } else {
+    // MARCH: every red hex with units tries to move this turn (not just one)
+    const aiMarchedIds=new Set();
+
+    // Score a target hex for AI desirability
+    function targetScore(t){
+      let s=0;
+      if(t.owner==='blue') s+=20;       // attacking player is high priority
+      else if(t.owner==='neutral') s+=5;
+      s+=t.income*2;
+      if(t.hexType==='town') s+=15;
+      if(t.hexType==='farm') s+=8;
+      if(t.hexType==='mystery') s+=4;
+      // Prefer targets we can win: have more units
+      return s;
+    }
+
+    // Sort: attack blue first, then grab neutrals
+    const marchers=shuffle([...redHexes()]).sort((a,b)=>{
+      // Hexes bordering blue hex go first
+      const aBordersBlue=hexAdj(a).some(x=>x.owner==='blue')?1:0;
+      const bBordersBlue=hexAdj(b).some(x=>x.owner==='blue')?1:0;
+      return bBordersBlue-aBordersBlue;
+    });
+
+    for(const rh of marchers){
+      if(aiMarchedIds.has(rh.id)) continue;
+      if(hexCombatUnits(rh)===0) continue;
+
+      const adj=hexAdj(rh).filter(a=>a.owner!=='red'&&!aiMarchedIds.has(a.id));
+      if(!adj.length) continue;
+
+      adj.sort((a,b)=>targetScore(b)-targetScore(a));
+      const target=adj[0];
+
+      aiMarchedIds.add(rh.id);
+      aiMarchedIds.add(target.id);
+
+      if(target.owner==='blue'){
+        oLog('Enemy forces march on your position!','red');
+        target.contested=true;
+        pendingBattles.push({from:rh,to:target});
+      } else {
+        // Capture neutral — must have at least 2 units to split (1 stays, 1+ goes)
+        const total=hexCombatUnits(rh);
+        if(total<2) continue; // not enough to hold source AND occupy target
+        const sendInf=Math.max(0,rh.units.infantry-1);
+        const sendCav=rh.units.cavalry;
+        const sendCan=rh.units.cannon;
+        const sending=sendInf+sendCav+sendCan;
+        if(sending===0) continue; // nothing to send
+        target.owner='red';
+        hexCapAdd(target,'infantry',sendInf);
+        hexCapAdd(target,'cavalry',sendCav);
+        hexCapAdd(target,'cannon',sendCan);
+        rh.units.infantry=rh.units.infantry-sendInf;
+        rh.units.cavalry=0; rh.units.cannon=0;
+        const note=target.hexType!=='field'?` [${target.hexType}]`:'';
+        oLog(`Enemy captures${note} territory.`,'red');
+      }
+    }
+  }
+
+  // Fire battles sequentially
+  if(pendingBattles.length){
+    // Only fight one battle per turn (simplification to avoid chaos)
+    const b=pendingBattles[0];
+    setTimeout(()=>startBattle(b.from,b.to,'ai'),400);
+  } else {
+    setTimeout(()=>{
+      ovPhase='player';
+      ovTurn++;
+      ovHealUsed=false;
+      ovMarchedHexes=new Set();
+      checkOverWin();
+      updateOverUI(); renderOver();
+      oLog(`— Turn ${ovTurn}: Your move —`,'sys');
+      if(Math.random()<0.20) setTimeout(()=>triggerRandomEvent('enemy'),400);
+    }, 600);
+  }
+}
+
+function checkOverWin(){
+  const blueCount=ovHexes.filter(h=>h.owner==='blue').length;
+  const redCount=ovHexes.filter(h=>h.owner==='red').length;
+  if(redCount===0){
+    showOverModal('victory',
+      '☆ Total Victory ☆',
+      'You have driven the Confederate forces from the field. The Union holds.',
+      `Turn ${ovTurn} · ${blueCount} hexes held · $${treasury} in treasury`);
+  }
+  if(blueCount===0){
+    showOverModal('defeat',
+      '✕ Defeated',
+      'Your armies have been swept from the field. The Confederacy holds the ground.',
+      `Fell on turn ${ovTurn} · $${aiTreasury} in enemy treasury`);
+  }
+}
+function showOverModal(type, title, body, stats=''){
+  const modal=document.getElementById('modal-over');
+  const h2=document.getElementById('modal-over-title');
+  h2.textContent=title;
+  h2.style.color=type==='victory'?'var(--gold)':'#cc4444';
+  document.getElementById('modal-over-body').textContent=body;
+  document.getElementById('modal-over-stats').textContent=stats;
+  modal.style.borderColor=type==='victory'?'var(--gold)':'#882222';
+  modal.classList.add('show');
+}
+
+// ═══════════════════════════════════════
+//  OVERWORLD UI
+// ═══════════════════════════════════════
+function updateOverUI(){
+  document.getElementById('ov-gold').textContent='$'+treasury;
+  document.getElementById('ov-income').textContent='$'+ovIncome('blue');
+  document.getElementById('ov-rations').textContent=rations;
+  document.getElementById('ov-bullets').textContent=bullets;
+  document.getElementById('ov-march').textContent=marchUpgradeLevel===0?'1 hex':`${1+marchUpgradeLevel} hex`;
+  document.getElementById('ov-turn').textContent=ovTurn;
+  document.getElementById('ov-phase').textContent=ovPhase==='player'?'Your Move':'Enemy Turn';
+  const h=ovSelected;
+  const isPlayer=ovPhase==='player';
+  // Unit buying: needs own hex selected
+  const canBuyUnits=h&&h.owner==='blue'&&isPlayer&&!ovMarchedHexes.has(h?.id);
+  document.getElementById('buy-inf').disabled=!canBuyUnits||treasury<20||hexAtCap(h,'infantry');
+  document.getElementById('buy-cav').disabled=!canBuyUnits||treasury<40||hexAtCap(h,'cavalry');
+  document.getElementById('buy-can').disabled=!canBuyUnits||treasury<60||hexAtCap(h,'cannon');
+  // Supplies: just need it to be your turn
+  document.getElementById('buy-rations').disabled=!isPlayer||treasury<10;
+  document.getElementById('buy-bullets').disabled=!isPlayer||treasury<15;
+  // March upgrade
+  const upgBtn=document.getElementById('buy-march-upgrade');
+  if(marchUpgradeLevel>=3){
+    upgBtn.textContent='March III (MAX)';
+    upgBtn.disabled=true;
+  } else {
+    const cost=MARCH_UPGRADE_COSTS[marchUpgradeLevel];
+    const roman=['I','II','III'][marchUpgradeLevel];
+    upgBtn.textContent=`March ${roman} $${cost}`;
+    upgBtn.disabled=!isPlayer||treasury<cost;
+  }
+  // Heal: needs own hex with units AND enough rations
+  const healBtn=document.getElementById('btn-heal');
+  const canHeal=h&&h.owner==='blue'&&isPlayer&&hexCombatUnits(h)>0&&rations>0&&!ovHealUsed;
+  healBtn.disabled=!canHeal;
+  document.getElementById('btn-march').disabled=!(h&&h.owner==='blue'&&hexCombatUnits(h)>0&&isPlayer&&!ovMarchedHexes.has(h?.id));
+  document.getElementById('btn-endturn').disabled=!isPlayer;
+  if(h){
+    const tot=hexUnitsTotal(h);
+    const typeNote=h.hexType!=='field'?` [${h.hexType.toUpperCase()}]`:'';
+    const healNote=h.healProgress?` 🩹${h.healProgress}hp restored`:'';
+    document.getElementById('over-hex-info').innerHTML=
+      `<b style="color:${h.owner==='blue'?'#5588dd':h.owner==='red'?'#cc3333':'#aaa'}">${h.owner.toUpperCase()}</b>` +
+      `${typeNote} $${h.income}/turn${h.rationOutput?' +'+h.rationOutput+'🥩':''} | ${tot} unit${tot!==1?'s':''}<br>`+
+      `Inf:${h.units.infantry} Cav:${h.units.cavalry} Can:${h.units.cannon}${healNote}`;
+  } else {
+    document.getElementById('over-hex-info').textContent='— tap a hex —';
+  }
+}
+
+function oLog(msg,cls=''){
+  const wrap=document.getElementById('over-log');
+  const el=document.createElement('div');
+  el.className='olog '+cls; el.textContent=msg;
+  wrap.prepend(el);
+  while(wrap.children.length>60) wrap.lastChild.remove();
+}
+function clearOLog(){
+  const wrap=document.getElementById('over-log');
+  wrap.innerHTML='';
+  // Ensure touch events on the log don't bleed to the canvas pan handlers
+  ['touchstart','touchmove','touchend'].forEach(ev=>{
+    wrap.addEventListener(ev,e=>e.stopPropagation(),{passive:true});
+  });
+}
+
+// ═══════════════════════════════════════
+//  BATTLE STATE
+// ═══════════════════════════════════════
+const BCOLS=20, BROWS=15, BCELL=44;
+
+let bUnits=[], bSelected=null, bMode=null;
+let bTurn=1, bActiveTeam='blue';
+let bMoved=new Set(), bAttacked=new Set();
+let bPanPointerStart=null, bPanPanStart=null, bIsPanning=false;
+let bPan={x:0,y:0};
+let bTerrain=[];
+let bFromHex=null, bToHex=null, bAttackerIsAI=false;
+let bBullets=0; // bullets pool for this battle
+// Cavalry charge: after attack, cavalry may move again
+let bCavChargeReady=new Set(); // cavalry that attacked and can still move
+
+const bCanvas=document.getElementById('battle-canvas');
+const bCtx=bCanvas.getContext('2d');
+
+function fitBattleCanvas(){
+  const wrap=document.getElementById('battle-canvas-wrap');
+  bCanvas.width=wrap.clientWidth||window.innerWidth;
+  bCanvas.height=wrap.clientHeight||window.innerHeight-160;
+  bRender();
+}
+
+// ── START BATTLE ──
+function startBattle(fromHex, toHex, initiator='player'){
+  bFromHex=fromHex; bToHex=toHex;
+  bAttackerIsAI=(initiator==='ai');
+  bUnits=[]; bSelected=null; bMode=null;
+  bTurn=1; bActiveTeam=bAttackerIsAI?'red':'blue';
+  bMoved.clear(); bAttacked.clear();
+  bCavChargeReady.clear();
+  bPan={x:0,y:0}; bScale=1.0;
+  bBullets=bullets;
+
+  generateTerrain();
+
+  const attackerTeam=bAttackerIsAI?'red':'blue';
+  const defenderTeam=bAttackerIsAI?'blue':'red';
+
+  spawnBattleUnits(attackerTeam, fromHex.units, attackerTeam==='blue'?1:BCOLS-2, attackerTeam==='blue'?BROWS-3:2, attackerTeam==='blue'?'N':'S');
+  spawnBattleUnits(defenderTeam, toHex.units,   defenderTeam==='blue'?1:BCOLS-2, defenderTeam==='blue'?BROWS-3:2, defenderTeam==='blue'?'N':'S');
+
+  if(bUnits.filter(u=>u.team===defenderTeam).length===0){
+    toHex.owner=attackerTeam; toHex.contested=false;
+    const survivors={infantry:0,cavalry:0,cannon:0};
+    bUnits.filter(u=>u.team===attackerTeam).forEach(u=>{ if(survivors[u.type]!==undefined) survivors[u.type]++; });
+    toHex.units=survivors;
+    fromHex.units={infantry:0,cavalry:0,cannon:0};
+    oLog(`${attackerTeam==='blue'?'Union captures':'Enemy captures'} undefended hex!`,attackerTeam);
+    checkOverWin(); updateOverUI(); renderOver();
+    // If AI captured undefended, advance turn back to player
+    if(bAttackerIsAI){
+      setTimeout(()=>{
+        ovPhase='player'; ovTurn++;
+        ovHealUsed=false; ovMarchedHexes=new Set();
+        checkOverWin(); updateOverUI(); renderOver();
+        oLog(`— Turn ${ovTurn}: Your move —`,'sys');
+      }, 400);
+    }
+    return;
+  }
+
+  if(bUnits.filter(u=>u.team===attackerTeam).length===0){
+    // Attacker evaporated somehow — cancel, return turn
+    toHex.contested=false;
+    oLog('Enemy attack fizzled — no forces.','sys');
+    if(bAttackerIsAI){
+      setTimeout(()=>{
+        ovPhase='player'; ovTurn++;
+        ovHealUsed=false; ovMarchedHexes=new Set();
+        updateOverUI(); renderOver();
+        oLog(`— Turn ${ovTurn}: Your move —`,'sys');
+      }, 300);
+    }
+    return;
+  }
+
+  showScreen('battle');
+  fitBattleCanvas();
+  // Center view on blue units
+  const blueU=bUnits.filter(u=>u.team==='blue');
+  if(blueU.length){
+    const avgX=blueU.reduce((s,u)=>s+u.x,0)/blueU.length;
+    const avgY=blueU.reduce((s,u)=>s+u.y,0)/blueU.length;
+    bPan.x=bCanvas.width/2 - avgX*BCELL*bScale - BCELL/2;
+    bPan.y=bCanvas.height/2 - avgY*BCELL*bScale - BCELL/2;
+  }
+  document.getElementById('bh-hex').textContent=`Hex (${toHex.col},${toHex.row})`;
+  bClearLog();
+  bLog(`Battle! ${attackerTeam==='blue'?'Union attacks':'Enemy attacks'}!`,'sys');
+  updateBattleUI(); bRender();
+  if(bAttackerIsAI && bActiveTeam==='red') setTimeout(runBattleAI,800);
+}
+
+function spawnBattleUnits(team, unitCounts, startX, startY, facing){
+  let dx=0;
+  ['infantry','cavalry','cannon'].forEach(type=>{
+    for(let i=0;i<(unitCounts[type]||0);i++){
+      let px=Math.min(Math.max(startX+dx,0),BCOLS-1);
+      let py=Math.min(Math.max(startY,0),BROWS-1);
+      while(bUnitAt(px,py)){ px=(px+1)%BCOLS; }
+      bUnits.push({id:uid(),team,type,facing,x:px,y:py,
+        hp:UNIT_DEF[type].hp,maxHp:UNIT_DEF[type].hp,
+        garrisoned:false});
+      dx+=2;
+    }
+  });
+}
+
+function generateTerrain(){
+  bTerrain=[];
+  const used=new Set();
+  const key=(x,y)=>`${x},${y}`;
+  const bCount=4+Math.floor(Math.random()*4);
+  for(let i=0;i<bCount;i++){
+    const x=3+Math.floor(Math.random()*(BCOLS-6));
+    const y=2+Math.floor(Math.random()*(BROWS-4));
+    if(!used.has(key(x,y))){
+      bTerrain.push({x,y,type:'building'}); used.add(key(x,y));
+      if(Math.random()<0.4){
+        const nx=x+(Math.random()<0.5?1:-1);
+        if(!used.has(key(nx,y))){ bTerrain.push({x:nx,y,type:'building'}); used.add(key(nx,y)); }
+      }
+    }
+  }
+  const mCount=8+Math.floor(Math.random()*6);
+  for(let i=0;i<mCount;i++){
+    const x=1+Math.floor(Math.random()*(BCOLS-2));
+    const y=1+Math.floor(Math.random()*(BROWS-2));
+    if(!used.has(key(x,y))){ bTerrain.push({x,y,type:'mud'}); used.add(key(x,y)); }
+  }
+}
+
+// ═══════════════════════════════════════
+//  BATTLE CANVAS
+// ═══════════════════════════════════════
+let bScale=1.0;
+let bPinchStartDist=null, bPinchStartScale=1.0;
+
+const bWrap=document.getElementById('battle-canvas-wrap');
+bWrap.addEventListener('mousedown', bPointerDown);
+bWrap.addEventListener('mousemove', bPointerMove);
+bWrap.addEventListener('mouseup',   bPointerUp);
+bWrap.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if(e.touches.length===2){
+    bPinchStartDist=Math.hypot(
+      e.touches[0].clientX-e.touches[1].clientX,
+      e.touches[0].clientY-e.touches[1].clientY);
+    bPinchStartScale=bScale;
+  } else {
+    bPointerDown(e);
+  }
+},{passive:false});
+bWrap.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===2&&bPinchStartDist){
+    const dist=Math.hypot(
+      e.touches[0].clientX-e.touches[1].clientX,
+      e.touches[0].clientY-e.touches[1].clientY);
+    bScale=Math.min(2.5,Math.max(0.4,bPinchStartScale*(dist/bPinchStartDist)));
+    bRender();
+  } else {
+    bPointerMove(e);
+  }
+},{passive:false});
+bWrap.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(e.touches.length<2) bPinchStartDist=null;
+  bPointerUp(e);
+},{passive:false});
+
+function bGetPt(e){
+  const r=bCanvas.getBoundingClientRect();
+  const t=e.changedTouches?e.changedTouches[0]:e.touches?e.touches[0]:e;
+  if(!t) return null;
+  return {x:t.clientX-r.left, y:t.clientY-r.top};
+}
+function bScreenToCell(pt){
+  return {
+    x:Math.floor((pt.x-bPan.x)/(BCELL*bScale)),
+    y:Math.floor((pt.y-bPan.y)/(BCELL*bScale))
+  };
+}
+
+function bPointerDown(e){
+  if(bActiveTeam!=='blue') return;
+  const pt=bGetPt(e); if(!pt) return;
+  bPanPointerStart={...pt}; bPanPanStart={...bPan}; bIsPanning=false;
+}
+function bPointerMove(e){
+  const pt=bGetPt(e); if(!pt||!bPanPointerStart) return;
+  const dx=pt.x-bPanPointerStart.x, dy=pt.y-bPanPointerStart.y;
+  if(Math.hypot(dx,dy)>8&&!bMode){ bIsPanning=true; }
+  if(bIsPanning){ bPan.x=bPanPanStart.x+dx; bPan.y=bPanPanStart.y+dy; }
+  bRender();
+}
+function bPointerUp(e){
+  const pt=bGetPt(e); if(!pt) return;
+  const cell=bScreenToCell(pt);
+  if(!bIsPanning){
+    if(bSelected && bMode){
+      if(bMode==='move')   bTryMove(bSelected,cell.x,cell.y);
+      if(bMode==='attack') bTryAttack(bSelected,cell.x,cell.y);
+    } else {
+      // Select a blue unit
+      const hit=bUnits.find(u=>u.x===cell.x&&u.y===cell.y&&u.team==='blue');
+      if(hit){ bSelected=hit; bMode=null; updateBattleUI(); bRender(); }
+    }
+  }
+  bIsPanning=false; bPanPointerStart=null;
+  bRender();
+}
+
+// ═══════════════════════════════════════
+//  BATTLE RENDER
+// ═══════════════════════════════════════
+function bRender(){
+  const cv=bCanvas, ctx=bCtx;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.translate(bPan.x,bPan.y);
+  ctx.scale(bScale,bScale);
+  drawBField(ctx);
+  drawBRangeOverlay(ctx);
+  drawBAttackOverlay(ctx);
+  bUnits.forEach(u=>drawBUnit(ctx,u));
+  ctx.restore();
+}
+
+function drawBField(ctx){
+  for(let r=0;r<BROWS;r++){
+    for(let c=0;c<BCOLS;c++){
+      const t=bTerrainAt(c,r);
+      let color=(c+r)%2===0?'#3d5228':'#435830';
+      if(t==='mud') color=(c+r)%2===0?'#6a5030':'#7a5e38';
+      if(t==='building') color='#5a5040';
+      ctx.fillStyle=color; ctx.fillRect(c*BCELL,r*BCELL,BCELL,BCELL);
+      ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=0.5;
+      ctx.strokeRect(c*BCELL,r*BCELL,BCELL,BCELL);
+      if(t==='building'){
+        ctx.strokeStyle='rgba(180,160,100,0.4)'; ctx.lineWidth=1;
+        ctx.strokeRect(c*BCELL+4,r*BCELL+4,BCELL-8,BCELL-8);
+        ctx.fillStyle='rgba(180,160,100,0.15)';
+        ctx.fillRect(c*BCELL+4,r*BCELL+4,BCELL-8,BCELL-8);
+        ctx.strokeStyle='rgba(180,160,100,0.2)'; ctx.lineWidth=0.5;
+        ctx.beginPath(); ctx.moveTo(c*BCELL+4,r*BCELL+4); ctx.lineTo(c*BCELL+BCELL-4,r*BCELL+BCELL-4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(c*BCELL+BCELL-4,r*BCELL+4); ctx.lineTo(c*BCELL+4,r*BCELL+BCELL-4); ctx.stroke();
+      }
+      if(t==='mud'){
+        ctx.fillStyle='rgba(80,50,20,0.3)';
+        for(let i=0;i<3;i++){
+          const mx=c*BCELL+8+i*10+Math.sin(c*3+r+i)*4;
+          const my=r*BCELL+12+i*7+Math.cos(c+r*2+i)*3;
+          ctx.beginPath(); ctx.ellipse(mx,my,5,3,0.5,0,Math.PI*2); ctx.fill();
+        }
+      }
+    }
+  }
+}
+
+function drawBRangeOverlay(ctx){
+  if(!bSelected||bMode!=='move') return;
+  const u=bSelected;
+  const mr=effectiveMoveRange(u);
+  // cavalry charge: show charge-move range differently
+  const isCharge=bCavChargeReady.has(u.id);
+  for(let r=0;r<BROWS;r++){
+    for(let c=0;c<BCOLS;c++){
+      const dist=Math.abs(c-u.x)+Math.abs(r-u.y);
+      if(dist>0&&dist<=mr&&!bUnitAt(c,r)){
+        ctx.fillStyle=isCharge?'rgba(255,200,80,0.18)':'rgba(100,180,255,0.13)';
+        ctx.fillRect(c*BCELL,r*BCELL,BCELL,BCELL);
+      }
+    }
+  }
+}
+
+function drawBAttackOverlay(ctx){
+  if(!bSelected||bMode!=='attack') return;
+  const u=bSelected;
+  const range=getAttackRange(u);
+  for(let r=0;r<BROWS;r++){
+    for(let c=0;c<BCOLS;c++){
+      const dist=Math.abs(c-u.x)+Math.abs(r-u.y);
+      if(dist>=1&&dist<=range){
+        const isSplash=u.type==='cannon'&&dist>1;
+        ctx.fillStyle=isSplash?'rgba(255,160,80,0.1)':'rgba(255,80,80,0.18)';
+        ctx.fillRect(c*BCELL,r*BCELL,BCELL,BCELL);
+      }
+    }
+  }
+}
+
+function drawBUnit(ctx,u){
+  const cx=u.x*BCELL+BCELL/2, cy=u.y*BCELL+BCELL/2;
+  const bw=BCELL-10, bh=14;
+  const isBlue=u.team==='blue';
+  const isSel=bSelected&&bSelected.id===u.id;
+  const done=bMoved.has(u.id)&&bAttacked.has(u.id)&&!bCavChargeReady.has(u.id);
+
+  let barColor=isBlue?(done?'#223366':isSel?'#6699ee':'#2a4a8a'):(done?'#441111':isSel?'#ee4444':'#7a1a1a');
+  if(u.garrisoned) barColor=isBlue?'#336633':'#663333';
+
+  // Charge-ready glow
+  if(bCavChargeReady.has(u.id)){
+    ctx.save();
+    ctx.shadowColor='#ffcc00'; ctx.shadowBlur=16;
+    ctx.fillStyle='rgba(255,200,0,0.15)';
+    ctx.fillRect(u.x*BCELL,u.y*BCELL,BCELL,BCELL);
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(cx,cy);
+  if(isSel){ ctx.shadowColor=isBlue?'#6699ff':'#ff4444'; ctx.shadowBlur=10; }
+  ctx.fillStyle=barColor;
+  ctx.strokeStyle=isBlue?'#88bbff':'#ff8888';
+  ctx.lineWidth=isSel?2:1;
+  bRoundRect(ctx,-bw/2,-bh/2,bw,bh,3); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur=0;
+
+  ctx.fillStyle='#fff';
+  ctx.font=`bold 12px "Share Tech Mono"`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const garLabel=u.garrisoned?'⌂':'';
+  const chargeLabel=bCavChargeReady.has(u.id)?'!':'';
+  ctx.fillText(UNIT_DEF[u.type].sym+garLabel+chargeLabel,0,0);
+
+  // HP pips
+  const pw=5,ph=4,pg=2;
+  const tw=u.maxHp*(pw+pg)-pg;
+  for(let i=0;i<u.maxHp;i++){
+    ctx.fillStyle=i<u.hp?(isBlue?'#88ccff':'#ff8888'):'rgba(255,255,255,0.15)';
+    ctx.fillRect(-tw/2+i*(pw+pg),bh/2+3,pw,ph);
+  }
+  ctx.restore();
+}
+
+function bRoundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+// ═══════════════════════════════════════
+//  BATTLE HELPERS
+// ═══════════════════════════════════════
+function bUnitAt(x,y){ return bUnits.find(u=>u.x===x&&u.y===y&&!u.garrisoned)||null; }
+function bUnitAtAny(x,y){ return bUnits.find(u=>u.x===x&&u.y===y)||null; }
+function bTerrainAt(x,y){ const t=bTerrain.find(t=>t.x===x&&t.y===y); return t?t.type:null; }
+
+function effectiveMoveRange(u){
+  let r=UNIT_DEF[u.type].moves;
+  if(bTerrainAt(u.x,u.y)==='mud') r=Math.max(1,Math.floor(r/2));
+  return r;
+}
+
+function cannonCanMove(u){
+  if(u.type!=='cannon') return true;
+  return bUnits.some(o=>o.team===u.team&&o.type==='infantry'&&
+    Math.abs(o.x-u.x)+Math.abs(o.y-u.y)<=2);
+}
+
+function getAttackRange(u){
+  if(u.type==='infantry') return 5;
+  if(u.type==='cavalry')  return 1;
+  if(u.type==='cannon')   return UNIT_DEF.cannon.atkRange;
+  return 0;
+}
+
+// ═══════════════════════════════════════
+//  BATTLE ACTIONS
+// ═══════════════════════════════════════
+function bSetMode(m){
+  if(!bSelected||bActiveTeam!=='blue') return;
+  const u=bSelected;
+  const isCharge=bCavChargeReady.has(u.id);
+  if(m==='move'){
+    // Can only move if: haven't moved yet, OR cavalry with charge pending
+    if(bMoved.has(u.id)&&!isCharge){ bLog('Already moved.','sys'); return; }
+  }
+  if(m==='attack'){
+    if(bAttacked.has(u.id)){ bLog('Already attacked.','sys'); return; }
+  }
+  bMode=m; updateBattleUI(); bRender();
+}
+
+function bTryMove(u,tx,ty){
+  // Cavalry charge: after attacking, cavalry may move once more
+  const isCharge=u.type==='cavalry'&&bCavChargeReady.has(u.id);
+  if(!isCharge&&bMoved.has(u.id)){ bLog('Already moved.','sys'); return; }
+  if(u.type==='cannon'&&!cannonCanMove(u)){ bLog('Cannon needs infantry escort to move!','sys'); return; }
+  const mr=effectiveMoveRange(u);
+  const dist=Math.abs(tx-u.x)+Math.abs(ty-u.y);
+  if(dist>mr||dist===0) return;
+  if(bUnitAt(tx,ty)) return;
+  if(bTerrainAt(tx,ty)==='building'&&u.type!=='infantry'){ bLog('Only infantry can enter buildings.','sys'); return; }
+  if(tx<0||tx>=BCOLS||ty<0||ty>=BROWS) return;
+
+  u.x=tx; u.y=ty;
+  u.garrisoned=!!(bTerrainAt(tx,ty)==='building'&&u.type==='infantry');
+
+  if(isCharge){
+    bCavChargeReady.delete(u.id);
+    bLog('Cavalry completes charge!','blue');
+  } else {
+    bMoved.add(u.id);
+    bLog(`${UNIT_DEF[u.type].label} advances.`,'blue');
+  }
+
+  bMode=null;
+  updateBattleUI(); bRender();
+}
+
+function bTryAttack(u,tx,ty){
+  if(bAttacked.has(u.id)){ bLog('Already attacked.','sys'); return; }
+  const range=getAttackRange(u);
+  const dist=Math.abs(tx-u.x)+Math.abs(ty-u.y);
+  if(dist<1||dist>range){ bLog('Out of range.','sys'); return; }
+
+  if(u.type==='cannon'){
+    // Cannon splash: direct target + 4-tile splash area around it
+    const directTarget=bUnitAtAny(tx,ty);
+    if(directTarget&&directTarget.team!==u.team){
+      bResolveCombat(u,directTarget,true);
+    }
+    // Splash: all cells within 2 of target (excluding direct)
+    bUnits.filter(en=>en.team!==u.team&&en.id!==(directTarget?.id)).forEach(en=>{
+      const sd=Math.abs(en.x-tx)+Math.abs(en.y-ty);
+      if(sd<=2) bResolveCombat(u,en,false);
+    });
+  } else if(u.type==='infantry'){
+    // Infantry: uses 1 bullet per attack
+    if(bBullets<=0){
+      bLog('No bullets! Infantry fights with bayonets (1 die, no range bonus).','red');
+    } else {
+      bBullets--;
+      bullets=Math.max(0,bullets-1);
+    }
+    const target=bUnitAtAny(tx,ty);
+    if(!target||target.team===u.team){ bLog('No target there.','sys'); return; }
+    // Penalty if no bullets
+    bResolveCombat(u,target,bBullets>=0); // isDirect affects dice
+  } else if(u.type==='cavalry'){
+    // Cavalry melee
+    const target=bUnitAtAny(tx,ty);
+    if(!target||target.team===u.team){ bLog('No target there.','sys'); return; }
+    bResolveCombat(u,target,true);
+    // CHARGE: after attack, cavalry can move again
+    if(!bMoved.has(u.id)){
+      bCavChargeReady.add(u.id);
+      bLog('Cavalry charges! May still advance after attack.','blue');
+    } else {
+      bCavChargeReady.add(u.id);
+      bLog('Cavalry charges! May still pursue.','blue');
+    }
+  }
+
+  bAttacked.add(u.id);
+  bMode=null; updateBattleUI(); bRender(); bCheckWin();
+}
+
+function captureCannon(inf,cannon){
+  cannon.team=inf.team;
+  cannon.facing=inf.facing;
+  bLog('Infantry captures enemy cannon!',inf.team==='blue'?'blue':'red');
+}
+
+function bResolveCombat(attacker,defender,isDirect){
+  const atkDef=UNIT_DEF[attacker.type];
+  let atkDice=atkDef.dice;
+  let defDice=UNIT_DEF[defender.type].dice;
+  if(attacker.type==='cannon') atkDice=isDirect?2:1;
+  if(defender.garrisoned) defDice+=1;
+  // No bullets: infantry penalty
+  if(attacker.type==='infantry'&&bBullets<=0) atkDice=Math.max(1,atkDice-1);
+  const atkRolls=rollDice(atkDice);
+  const defRolls=rollDice(defDice);
+  let atkTotal=atkRolls.reduce((a,b)=>a+b,0);
+  let defTotal=defRolls.reduce((a,b)=>a+b,0);
+  const dmg=Math.max(0,atkTotal-defTotal);
+  defender.hp-=dmg;
+  const side=attacker.team==='blue'?'Union':'Enemy';
+  const garNote=defender.garrisoned?' (fortified)':'';
+  bLog(`${side} ${atkDef.label} [${atkRolls}]=${atkTotal} vs [${defRolls}]=${defTotal}${garNote} → ${dmg>0?dmg+' dmg':'blocked'}`,'combat');
+  if(defender.hp<=0){
+    bLog(`${UNIT_DEF[defender.type].label} destroyed!`,defender.team==='blue'?'red':'blue');
+    bUnits=bUnits.filter(u=>u.id!==defender.id);
+    if(bSelected&&bSelected.id===defender.id) bSelected=null;
+  }
+}
+
+// ═══════════════════════════════════════
+//  BATTLE TURN
+// ═══════════════════════════════════════
+function bEndPlayerTurn(){
+  bSelected=null; bMode=null;
+  bMoved.clear(); bAttacked.clear(); bCavChargeReady.clear();
+  bActiveTeam='red'; bTurn++;
+  updateBattleUI(); bRender();
+  bLog('— Enemy turn —','sys');
+  setTimeout(runBattleAI,600);
+}
+
+function runBattleAI(){
+  const aiUnits=shuffle(bUnits.filter(u=>u.team==='red'));
+  if(!aiUnits.length){ bEndAITurn(); return; }
+  let delay=0;
+  aiUnits.forEach(u=>{
+    delay+=250+Math.random()*350;
+    setTimeout(()=>{
+      if(!bUnits.find(x=>x.id===u.id)) return;
+      bAIActUnit(u);
+      updateBattleUI(); bRender(); bCheckWin();
+    },delay);
+  });
+  setTimeout(bEndAITurn,delay+300);
+}
+
+function bAIActUnit(u){
+  if(Math.random()<0.12){ bLog('Enemy holds.','red'); return; }
+  const enemies=bUnits.filter(x=>x.team==='blue');
+  if(!enemies.length) return;
+  const target=enemies[Math.floor(Math.random()*enemies.length)];
+  const range=getAttackRange(u);
+  const dist=Math.abs(u.x-target.x)+Math.abs(u.y-target.y);
+
+  if(dist>=1&&dist<=range&&!bAttacked.has(u.id)){
+    bResolveCombat(u,target,dist===1);
+    bAttacked.add(u.id);
+    // AI cavalry charge
+    if(u.type==='cavalry'&&!bMoved.has(u.id)){
+      const moves=bAICandidateMoves(u);
+      if(moves.length){
+        moves.sort((a,b)=>(Math.abs(a.x-target.x)+Math.abs(a.y-target.y))-(Math.abs(b.x-target.x)+Math.abs(b.y-target.y)));
+        const mv=moves[0]; u.x=mv.x; u.y=mv.y;
+        bMoved.add(u.id);
+        bLog('Enemy cavalry charges through!','red');
+      }
+    }
+    return;
+  }
+
+  if(!bMoved.has(u.id)){
+    if(u.type==='cannon'&&!cannonCanMove(u)) return;
+    const moves=bAICandidateMoves(u);
+    if(moves.length){
+      moves.sort((a,b)=>{
+        const da=Math.abs(a.x-target.x)+Math.abs(a.y-target.y);
+        const db=Math.abs(b.x-target.x)+Math.abs(b.y-target.y);
+        return (da-db)+(Math.random()*4-2);
+      });
+      const mv=moves[0]; u.x=mv.x; u.y=mv.y;
+      bMoved.add(u.id);
+      bLog('Enemy advances.','red');
+      // Attack after move
+      const d2=Math.abs(u.x-target.x)+Math.abs(u.y-target.y);
+      if(d2>=1&&d2<=range&&!bAttacked.has(u.id)&&bUnits.find(x=>x.id===target.id)){
+        bResolveCombat(u,target,d2===1);
+        bAttacked.add(u.id);
+      }
+    }
+  }
+}
+
+function bAICandidateMoves(u){
+  const mr=effectiveMoveRange(u);
+  const res=[];
+  for(let dx=-mr;dx<=mr;dx++){
+    for(let dy=-mr;dy<=mr;dy++){
+      if(Math.abs(dx)+Math.abs(dy)>mr||(!dx&&!dy)) continue;
+      const nx=u.x+dx,ny=u.y+dy;
+      if(nx<0||nx>=BCOLS||ny<0||ny>=BROWS||bUnitAt(nx,ny)) continue;
+      if(bTerrainAt(nx,ny)==='building'&&u.type!=='infantry') continue;
+      res.push({x:nx,y:ny});
+    }
+  }
+  return res;
+}
+
+function bEndAITurn(){
+  bActiveTeam='blue';
+  bMoved.clear(); bAttacked.clear(); bCavChargeReady.clear();
+  updateBattleUI(); bRender();
+  bLog(`— Turn ${bTurn}: Your move —`,'sys');
+}
+
+function bCheckWin(){
+  const blues=bUnits.filter(u=>u.team==='blue');
+  const reds=bUnits.filter(u=>u.team==='red');
+  if(!reds.length)  showBattleModal('Victory!','You hold the field.',true);
+  if(!blues.length) showBattleModal('Defeat','Your forces are broken.',false);
+}
+
+function showBattleModal(t,b,playerWon){
+  document.getElementById('modal-battle-title').textContent=t;
+  document.getElementById('modal-battle-body').textContent=b;
+  document.getElementById('modal-battle').classList.add('show');
+  bWinResult=playerWon;
+}
+let bWinResult=false;
+
+function battleDone(){
+  document.getElementById('modal-battle').classList.remove('show');
+  // Sync bullets back
+  bullets=bBullets;
+  const toHex=bToHex, fromHex=bFromHex;
+  // Helper: build survivors + damage map from battle units for a given team+hex
+  function writeSurvivors(hex, team){
+    const units={infantry:0,cavalry:0,cannon:0};
+    const damage={infantry:0,cavalry:0,cannon:0};
+    bUnits.filter(u=>u.team===team).forEach(u=>{
+      if(units[u.type]!==undefined){
+        units[u.type]++;
+        damage[u.type]+=(u.maxHp-u.hp); // HP lost = damage
+      }
+    });
+    hex.units=units;
+    hex.damage=damage;
+    hex.healProgress=0;
+  }
+
+  if(bWinResult){
+    const winnerTeam=bAttackerIsAI?'red':'blue';
+    toHex.owner=winnerTeam; toHex.contested=false;
+    writeSurvivors(toHex, winnerTeam);
+    fromHex.units={infantry:0,cavalry:0,cannon:0};
+    fromHex.damage={infantry:0,cavalry:0,cannon:0};
+    oLog(`${winnerTeam==='blue'?'Union captures':'Enemy captures'} hex (${toHex.col},${toHex.row})!`,winnerTeam);
+  } else {
+    toHex.contested=false;
+    const loserTeam=bAttackerIsAI?'red':'blue';
+    const winnerTeam=loserTeam==='blue'?'red':'blue';
+    fromHex.units={infantry:0,cavalry:0,cannon:0};
+    fromHex.damage={infantry:0,cavalry:0,cannon:0};
+    writeSurvivors(toHex, winnerTeam);
+    oLog(`${loserTeam==='blue'?'Union':'Enemy'} attack repelled.`,loserTeam==='blue'?'red':'blue');
+  }
+  checkOverWin();
+  showScreen('over');
+  if(bAttackerIsAI){
+    ovPhase='player'; ovTurn++;
+    ovHealUsed=false;
+    ovMarchedHexes=new Set();
+    oLog(`— Turn ${ovTurn}: Your move —`,'sys');
+    if(Math.random()<0.20) setTimeout(()=>triggerRandomEvent('enemy'),400);
+  }
+  updateOverUI(); renderOver();
+}
+
+// ═══════════════════════════════════════
+//  BATTLE UI
+// ═══════════════════════════════════════
+function updateBattleUI(){
+  const u=bSelected;
+  document.getElementById('bh-blue').textContent=bUnits.filter(x=>x.team==='blue').length;
+  document.getElementById('bh-red').textContent=bUnits.filter(x=>x.team==='red').length;
+  document.getElementById('bh-turn').textContent=bTurn;
+  document.getElementById('bh-bullets').textContent=bBullets;
+  document.getElementById('bh-phase').textContent=bActiveTeam==='blue'?'Your turn':'Enemy thinking…';
+  const isPlayer=bActiveTeam==='blue';
+  const isCharge=u&&u.type==='cavalry'&&bCavChargeReady.has(u.id);
+  const canMove=u&&isPlayer&&(!bMoved.has(u.id)||isCharge);
+  const canAtk=u&&isPlayer&&!bAttacked.has(u.id);
+  document.getElementById('bb-move').disabled=!canMove;
+  document.getElementById('bb-attack').disabled=!canAtk;
+  document.getElementById('bb-end').disabled=!isPlayer;
+  document.getElementById('bb-move').classList.toggle('active',bMode==='move');
+  document.getElementById('bb-attack').classList.toggle('active',bMode==='attack');
+
+  if(u){
+    const mr=effectiveMoveRange(u);
+    const chargeNote=isCharge?' ⚡CHARGE':''
+    const cannonNote=u.type==='cannon'?(cannonCanMove(u)?' (escort OK)':' (no escort!)'):'';
+    const garNote=u.garrisoned?' [fortified]':'';
+    document.getElementById('sel-info').textContent=
+      `${UNIT_DEF[u.type].label} HP:${u.hp}/${u.maxHp} Mv:${mr}${cannonNote}${garNote}${chargeNote}`;
+  } else {
+    document.getElementById('sel-info').textContent='—';
+  }
+}
+
+function bLog(msg,cls=''){
+  const wrap=document.getElementById('battle-log');
+  const el=document.createElement('div'); el.className='blog '+cls; el.textContent=msg;
+  wrap.prepend(el);
+  while(wrap.children.length>60) wrap.lastChild.remove();
+}
+function bClearLog(){
+  const wrap=document.getElementById('battle-log');
+  wrap.innerHTML='';
+  ['touchstart','touchmove','touchend'].forEach(ev=>{
+    wrap.addEventListener(ev,e=>e.stopPropagation(),{passive:true});
+  });
+}
+
+// ═══════════════════════════════════════
+//  SCREEN / BOOT
+// ═══════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('[id^="screen-"]').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  if(id==='over')    setTimeout(fitOverCanvas,50);
+  if(id==='battle')  setTimeout(fitBattleCanvas,50);
+}
+function restartGame(){
+  document.getElementById('modal-over').classList.remove('show');
+  document.getElementById('modal-battle').classList.remove('show');
+  document.getElementById('modal-event').classList.remove('show');
+  showScreen('over');
+  initOverworld();
+}
+
+window.addEventListener('load',()=>{
+  initOverworld(); fitOverCanvas(); fitBattleCanvas(); bRender();
+  // Log panels: allow scroll touch without leaking to canvas
+  ['over-log','battle-log'].forEach(id=>{
+    const el=document.getElementById(id);
+    ['touchstart','touchmove','touchend'].forEach(ev=>{
+      el.addEventListener(ev,e=>e.stopPropagation(),{passive:true});
+    });
+  });
+});
+</script>
+</body>
+</html>
