@@ -21,7 +21,7 @@ const NAV_DATA = {
         {
           title:   "voxel terrain",
           path:    "demos/Voxel-world/index.html",
-          updated: "2026-06-10",
+          updated: "2026-06-12",
         },
         {
           title:   "Example Game Demo",
@@ -29,7 +29,7 @@ const NAV_DATA = {
           desc:    "A placeholder demo page. Replace with your actual game embed or write-up.",
           tag:     "playable",
           featured: true,
-          updated: "2026-06-10",
+          updated: "2026-06-12",
         },
       ],
     },
@@ -42,7 +42,7 @@ const NAV_DATA = {
           path:    "stories/example-story/index.html",
           desc:    "A placeholder story entry. Replace with your actual narrative content.",
           tag:     "fiction",
-          updated: "2026-06-10",
+          updated: "2026-06-12",
         },
       ],
     },
